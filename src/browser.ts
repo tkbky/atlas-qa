@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { Stagehand } from "@browserbasehq/stagehand";
 import type { Observation, Affordance } from "./types.js";
+import { logDebug, logInfo } from "./logger.js";
 
 /**
  * Thin Stagehand v3 wrapper
@@ -19,6 +20,7 @@ export class WebEnv {
   async init(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
     this.sh = new Stagehand({ env });
     await this.sh.init();
+    logInfo("Stagehand environment initialized", { env });
   }
 
   get page() {
@@ -27,18 +29,34 @@ export class WebEnv {
 
   async goto(url: string) {
     await this.page.goto(url);
+    logInfo("Navigated to URL", { url });
   }
 
   async currentObservation(): Promise<Observation> {
     const url = this.page.url();
     const title = await this.page.title();
-    const affordances = await this.sh.observe("Find clickable buttons, links, and inputs relevant to the task.");
+    const affordances = await this.sh.observe(
+      "Find interactive controls relevant to the task, including buttons, links, form fields (inputs, textareas, selects), checkboxes, toggles, sliders, and other actionable elements."
+    );
     // Raw page text can help with planning/critique:
     const { pageText } = await this.sh.extract();
-    return { url, title, affordances: affordances as Affordance[], pageText };
+    const observation: Observation = { url, title, affordances: affordances as Affordance[], pageText };
+    logDebug("Current observation generated", {
+      url,
+      title,
+      affordanceCount: observation.affordances.length,
+      pageTextLength: observation.pageText?.length ?? 0,
+    });
+    return observation;
   }
 
   async act(a: Affordance) {
+    logDebug("Dispatching action to Stagehand", {
+      selector: a.selector,
+      method: a.method,
+      description: a.description,
+      hasInstruction: Boolean(a.instruction),
+    });
     if (a.selector && a.method) {
       await this.sh.act({
         selector: a.selector,
@@ -51,13 +69,18 @@ export class WebEnv {
     } else {
       throw new Error("Invalid action: need either selector+method or instruction");
     }
+    logInfo("Action completed", { description: a.description });
   }
 
   async goBack() {
     await this.page.goBack();
+    logInfo("Browser navigated back");
   }
 
   async close() {
-    await this.sh.close();
+    if (this.sh) {
+      await this.sh.close();
+      logInfo("Stagehand environment closed");
+    }
   }
 }

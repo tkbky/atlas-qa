@@ -3,6 +3,7 @@ import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
 import type { Observation, Plan, Candidate, Critique } from "./types.js";
+import { logDebug, logInfo } from "./logger.js";
 
 /**
  * Mastra Agents:
@@ -72,6 +73,7 @@ const PlanSchema = z.object({
 });
 
 export async function plan(goal: string, o0: Observation): Promise<Plan> {
+  logInfo("Planner agent invoked", { goal, url: o0.url, title: o0.title });
   const res = await plannerAgent.generate(
     [
       { role: "system", content: "Return JSON only." },
@@ -79,7 +81,9 @@ export async function plan(goal: string, o0: Observation): Promise<Plan> {
     ],
     { structuredOutput: { schema: PlanSchema } }
   );
-  return (res.object as Plan) ?? { subgoals: [] };
+  const planResult = (res.object as Plan) ?? { subgoals: [] };
+  logInfo("Planner agent response received", { plan: planResult });
+  return planResult;
 }
 
 const ActionSchema = z.object({
@@ -113,6 +117,7 @@ export async function propose(
     .map(a => `- ${a.description} ${a.selector ? `(selector=${a.selector})` : ""}`)
     .join("\n");
 
+  logInfo("Actor agent invoked", { goal, subgoals: P.subgoals, url: o.url, title: o.title, beam: N });
   const res = await actorAgent.generate(
     [
       { role: "system", content: "Return JSON only." },
@@ -126,7 +131,10 @@ export async function propose(
     ],
     { structuredOutput: { schema: CandidatesSchema } }
   );
-  return res.object?.candidates as Candidate[] || [];
+  const candidates = res.object?.candidates as Candidate[] || [];
+  logInfo("Actor agent response received", { candidateCount: candidates.length });
+  logDebug("Actor agent candidates detail", { candidates });
+  return candidates;
 }
 
 const CritiqueSchema = z.object({
@@ -143,6 +151,13 @@ export async function critique(
   candidates: Candidate[],
   lookaheads: (Observation | null)[],
 ): Promise<Critique> {
+  logInfo("Critic agent invoked", {
+    goal,
+    subgoals: P.subgoals,
+    url: o.url,
+    title: o.title,
+    candidateCount: candidates.length,
+  });
   const candBlock = candidates
     .map((c, i) => `#${i} ${c.action.description} | selector=${c.action.selector ?? ""} | method=${c.action.method ?? ""}`)
     .join("\n");
@@ -164,5 +179,8 @@ export async function critique(
     ],
     { structuredOutput: { schema: CritiqueSchema } }
   );
-  return (res.object as Critique) ?? { chosenIndex: 0, ranked: [] };
+  const critiqueResult = (res.object as Critique) ?? { chosenIndex: 0, ranked: [] };
+  logInfo("Critic agent response received", { critique: critiqueResult });
+  logDebug("Critic agent ranked detail", { ranked: critiqueResult.ranked });
+  return critiqueResult;
 }
