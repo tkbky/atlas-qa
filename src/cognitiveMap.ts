@@ -26,4 +26,8 @@ export class CognitiveMap {
       affordances: [],
     };
   }
+
+  snapshot(): Transition[] {
+    return Array.from(this.edges.values()).map(tr => JSON.parse(JSON.stringify(tr)) as Transition);
+  }
 }

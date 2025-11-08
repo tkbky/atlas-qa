@@ -1,4 +1,4 @@
-import type { Observation } from "./types.js";
+import type { Observation, Plan, Candidate, Critique, Transition, Affordance } from "./types.js";
 import { CognitiveMap } from "./cognitiveMap.js";
 import { WebEnv } from "./browser.js";
 import { plan, propose, critique } from "./agents.js";
@@ -18,16 +18,50 @@ export type AtlasOptions = {
   depth?: number;      // D (naive: 1)
   logDir?: string;
   runLabel?: string;
+  timeBudgetMs?: number;
 };
 
-export async function runAtlas(goal: string, startUrl: string, opts: AtlasOptions = {}) {
-  const { env = "LOCAL", maxSteps = 15, beamSize = 3, logDir, runLabel } = opts;
+export type AtlasStepArtifact = {
+  step: number;
+  plan: Plan;
+  candidates: Candidate[];
+  critique: Critique;
+  chosenIndex: number;
+  action: Affordance;
+  observationBefore: Observation;
+  observationAfter: Observation;
+};
+
+export type AtlasRunArtifacts = {
+  goal: string;
+  startUrl: string;
+  steps: AtlasStepArtifact[];
+  finalObservation: Observation;
+  cognitiveMap: Transition[];
+  endedReason: string;
+};
+
+const clone = <T>(value: T): T => {
+  const structuredCloneFn = (globalThis as { structuredClone?: (value: unknown) => unknown }).structuredClone;
+  if (structuredCloneFn) {
+    return structuredCloneFn(value) as T;
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+export async function runAtlas(goal: string, startUrl: string, opts: AtlasOptions = {}): Promise<AtlasRunArtifacts> {
+  const { env = "LOCAL", maxSteps = 15, beamSize = 3, logDir, runLabel, timeBudgetMs } = opts;
+  const vetoThreshold = 0.0; // Minimal critic veto: skip clearly negative choices
 
   const logger = initRunLogger({ logDir, runLabel });
   logInfo("Atlas run started", { goal, startUrl, env, maxSteps, beamSize, runLabel: logger.runId });
 
   const web = new WebEnv();
   const M = new CognitiveMap();
+  const steps: AtlasStepArtifact[] = [];
+  let runArtifacts: AtlasRunArtifacts | null = null;
+  const startTime = Date.now();
+  let endedReason = "max_steps_reached";
 
   try {
     await web.init(env);
@@ -45,10 +79,18 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
     for (let t = 0; t < maxSteps; t++) {
       logInfo("Step started", { step: t, plan: P.subgoals });
 
-      const C = await propose(goal, P, o, beamSize);
+      if (timeBudgetMs && Date.now() - startTime > timeBudgetMs) {
+        endedReason = "time_budget_exceeded";
+        logWarn("Time budget exceeded, terminating loop", { step: t, timeBudgetMs });
+        break;
+      }
+
+      // ACTOR: ask for at least 2 to give the Critic a choice
+      let C = await propose(goal, P, o, Math.max(beamSize, 2));
       logInfo("Candidates proposed", { step: t, candidates: C });
       if (C.length === 0) {
         logWarn("No candidates proposed, terminating loop", { step: t });
+        endedReason = "no_candidates";
         break;
       }
 
@@ -58,9 +100,21 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const critiqueRes = await critique(goal, P, o, C, lookaheads);
       logInfo("Critique results received", { step: t, critique: critiqueRes });
 
-      const chosenIndex = Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex));
-      const choice = C[chosenIndex];
-      logInfo("Selected action", { step: t, chosenIndex, action: choice });
+      const best = critiqueRes.ranked?.[0];
+      // Minimal, generic safety: if Critic says "bad", don't execute it; diversify once.
+      if (best && best.value < vetoThreshold) {
+        C = await propose(
+          `${goal} (prefer actions that increase data completeness before clicks)`,
+          P, o, Math.max(beamSize, 3)
+        );
+        if (C.length === 0) {
+          // Nothing better; replan and continue without executing a bad click
+          P = await plan(goal, o);
+          continue;
+        }
+      }
+      const choice = C[Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex))];
+      logInfo("Selected action", { step: t, chosenIndex: critiqueRes.chosenIndex, action: choice });
 
       await web.act(choice.action);
       logInfo("Action executed", { step: t, action: choice.action });
@@ -71,6 +125,17 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
       M.record(o, choice.action, oNext, delta);
       logDebug("Cognitive map updated", { step: t, delta });
+
+      steps.push({
+        step: t,
+        plan: clone(P),
+        candidates: clone(C),
+        critique: clone(critiqueRes),
+        chosenIndex: critiqueRes.chosenIndex,
+        action: clone(choice.action),
+        observationBefore: clone(o),
+        observationAfter: clone(oNext),
+      });
 
       const noMove = o.url === oNext.url && o.title === oNext.title;
       if (noMove || t % 3 === 2) {
@@ -83,9 +148,19 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
 
       if (/success|completed|done/i.test(o.title)) {
         logInfo("Success heuristic matched, terminating run", { step: t, title: o.title });
+        endedReason = "success_heuristic";
         break;
       }
     }
+
+    runArtifacts = {
+      goal,
+      startUrl,
+      steps,
+      finalObservation: clone(o),
+      cognitiveMap: M.snapshot(),
+      endedReason,
+    };
   } catch (error) {
     logError("Atlas run encountered an error", { error });
     throw error;
@@ -98,6 +173,12 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
     }
     shutdownLogger();
   }
+
+  if (!runArtifacts) {
+    throw new Error("Atlas run did not produce artifacts");
+  }
+
+  return runArtifacts;
 }
 
 function summarizeObservation(o: Observation) {

@@ -34,6 +34,7 @@ export const plannerAgent = new Agent({
     "You are the Planner in an actor–critic web agent.",
     "Decompose the goal into concise subgoals with explicit success predicates.",
     "Prefer UI-anchored steps (e.g., 'Reports → Sales → Set dates → Read table').",
+    "If the goal mentions specific credentials or field values, include subgoals to enter each value before attempting submission.",
   ],
 });
 
@@ -46,6 +47,9 @@ export const actorAgent = new Agent({
     "Only propose actions visible in the observation; avoid destructive actions (delete/purchase).",
     "Return short rationales.",
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
+    "When suggesting form interactions, prefer deterministic actions (fill/type/click).",
+    "For input fields, set method to 'fill' and provide the exact string to enter as the first item of 'arguments'. Do not leave fill arguments empty—copy the value from the goal or prior observations.",
+    "Provide one action per field (email, password, etc.) before submitting forms.",
   ],
 });
 
@@ -57,6 +61,7 @@ export const criticAgent = new Agent({
     "You are the Critic. For each candidate, consider the cognitive-map look-ahead (o_hat).",
     "Score candidates in [-1,1] for goal alignment, recoverability, and plan consistency.",
     "Prefer actions that expose new affordances while avoiding dead-ends or irreversible transitions.",
+    "Down-rank candidates that submit forms without first filling required fields with the goal-specified values.",
   ],
 });
 
@@ -106,6 +111,22 @@ const CandidatesSchema = z.object({
     .max(5),
 });
 
+// Minimal, generic form-state summary (no special-casing of field names)
+function summarizeFormState(o: Observation) {
+  const inputs = (o.affordances as any[]).filter(a => a?.fieldInfo?.tagName === "input");
+  const rows = inputs.map(a => {
+    const fi = a.fieldInfo ?? {};
+    const id = fi.name || fi.id || fi.label || a.description || "";
+    const t = fi.type || "text";
+    const req = fi.required ? "required" : "optional";
+    const val = (a.currentValue ?? fi.value ?? "") as string;
+    const len = val ? String(val).length : 0;
+    return `• ${id} [type=${t}, ${req}, valueLen=${len}]`;
+  });
+  const missing = inputs.filter(a => a?.fieldInfo?.required && !((a.currentValue ?? a.fieldInfo?.value) ?? "").length);
+  return { table: rows.join("\n"), missingCount: missing.length };
+}
+
 export async function propose(
   goal: string,
   P: Plan,
@@ -113,9 +134,9 @@ export async function propose(
   N = 3
 ): Promise<Candidate[]> {
   const affordanceHints = o.affordances
-    .slice(0, 20)
-    .map(a => `- ${a.description} ${a.selector ? `(selector=${a.selector})` : ""}`)
+    .map(a => `- ${a.description}${(a as any).selector ? ` (selector=${(a as any).selector})` : ""}`)
     .join("\n");
+  const fs = summarizeFormState(o);
 
   logInfo("Actor agent invoked", { goal, subgoals: P.subgoals, url: o.url, title: o.title, beam: N });
   const res = await actorAgent.generate(
@@ -124,9 +145,18 @@ export async function propose(
       {
         role: "user",
         content:
-          `Goal: ${goal}\nPlan:\n${P.subgoals.map(s => `• ${s.text} [${s.successPredicate}]`).join("\n")}\n` +
-          `Page: ${o.url} | ${o.title}\nAffordances:\n${affordanceHints}\n` +
-          `Produce at most ${N} safe candidates drawn from visible affordances. Use 'instruction' if needed.`,
+`Goal: ${goal}
+Plan:
+${P.subgoals.map(s => `• ${s.text} [${s.successPredicate}]`).join("\n")}
+Page: ${o.url} | ${o.title}
+
+Visible affordances:
+${affordanceHints}
+
+Observed input state (generic):
+${fs.table}
+
+Rule: When any required input has valueLen=0, prefer proposing 'fill' actions for those inputs before proposing clicks. Do not assume values are filled unless valueLen>0.`,
       },
     ],
     { structuredOutput: { schema: CandidatesSchema } }
