@@ -41,6 +41,17 @@ export type AtlasRunArtifacts = {
   endedReason: string;
 };
 
+// --- progress-aware helper (generic, keyword-free) ---
+// Treat "fewer empty required inputs" as progress even if URL/title are unchanged.
+const requiredEmptyCount = (o: Observation) =>
+  o.affordances
+    .filter(a => (a as any)?.fieldInfo?.tagName === "input")
+    .filter(a => {
+      const fi = (a as any).fieldInfo ?? {};
+      const val = (a as any).currentValue ?? fi.value ?? "";
+      return !!fi.required && String(val).length === 0;
+    }).length;
+
 const clone = <T>(value: T): T => {
   const structuredCloneFn = (globalThis as { structuredClone?: (value: unknown) => unknown }).structuredClone;
   if (structuredCloneFn) {
@@ -51,7 +62,7 @@ const clone = <T>(value: T): T => {
 
 export async function runAtlas(goal: string, startUrl: string, opts: AtlasOptions = {}): Promise<AtlasRunArtifacts> {
   const { env = "LOCAL", maxSteps = 15, beamSize = 3, logDir, runLabel, timeBudgetMs } = opts;
-  const vetoThreshold = 0.0; // Minimal critic veto: skip clearly negative choices
+  const vetoThreshold = 0.0; // optional: ignore obviously bad actions from Critic
 
   const logger = initRunLogger({ logDir, runLabel });
   logInfo("Atlas run started", { goal, startUrl, env, maxSteps, beamSize, runLabel: logger.runId });
@@ -85,7 +96,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         break;
       }
 
-      // ACTOR: ask for at least 2 to give the Critic a choice
+      // Ask for at least 2 so the Critic has a choice
       let C = await propose(goal, P, o, Math.max(beamSize, 2));
       logInfo("Candidates proposed", { step: t, candidates: C });
       if (C.length === 0) {
@@ -94,31 +105,46 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         break;
       }
 
+      // CRITIC: look-ahead via cognitive map (D=1 naive)
       const lookaheads = C.map(c => M.lookup(o, c.action) ?? M.placeholder(o, c.action));
       logDebug("Lookahead states prepared", { step: t, lookaheads });
 
       const critiqueRes = await critique(goal, P, o, C, lookaheads);
       logInfo("Critique results received", { step: t, critique: critiqueRes });
+      const choiceIdx = Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex));
+      let choice = C[choiceIdx];
 
-      const best = critiqueRes.ranked?.[0];
-      // Minimal, generic safety: if Critic says "bad", don't execute it; diversify once.
-      if (best && best.value < vetoThreshold) {
-        C = await propose(
-          `${goal} (prefer actions that increase data completeness before clicks)`,
-          P, o, Math.max(beamSize, 3)
-        );
-        if (C.length === 0) {
-          // Nothing better; replan and continue without executing a bad click
-          P = await plan(goal, o);
-          continue;
-        }
+      // If any required input has empty value, don't execute *any* click yet—ask for a fill first.
+      const inputs = o.affordances.filter(a => (a as any)?.fieldInfo?.tagName === "input");
+      const requiredEmpty = inputs.filter(a => {
+        const fi = (a as any).fieldInfo ?? {};
+        const val = (a as any).currentValue ?? fi.value ?? "";
+        return !!fi.required && String(val).length === 0;
+      });
+      const hasFillOption = o.affordances.some(a => a.method === "fill");
+      const isClick = choice.action.method === "click";
+      if (isClick && requiredEmpty.length > 0 && hasFillOption) {
+        // Do not execute; ask the Actor again with a tiny nudge toward completeness.
+        C = await propose(`${goal} (fill required inputs with empty values before any clicks)`, P, o, Math.max(beamSize, 3));
+        if (C.length === 0) { P = await plan(goal, o); continue; }
+        choice = C[0];
       }
-      const choice = C[Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex))];
+      // ---------------------------- optional critic veto ----------------------------
+      const best = critiqueRes.ranked?.[0];
+      if (best && best.value < vetoThreshold) {
+        C = await propose(`${goal} (avoid low-value actions; prefer increasing data completeness first)`, P, o, Math.max(beamSize, 3));
+        if (C.length === 0) { P = await plan(goal, o); continue; }
+        choice = C[0];
+      }
+      // -------------------------------------------------------------------------------
+
       logInfo("Selected action", { step: t, chosenIndex: critiqueRes.chosenIndex, action: choice });
 
+      // EXECUTE
       await web.act(choice.action);
       logInfo("Action executed", { step: t, action: choice.action });
 
+      // OBSERVE NEXT
       const oNext = await web.currentObservation();
       logDebug("Observation after action", { step: t, observation: summarizeObservation(oNext) });
 
@@ -137,9 +163,12 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         observationAfter: clone(oNext),
       });
 
-      const noMove = o.url === oNext.url && o.title === oNext.title;
-      if (noMove || t % 3 === 2) {
-        logInfo("Replanning triggered", { step: t, reason: noMove ? "no-move" : "periodic" });
+      // PROGRESS-AWARE REPLANNING:
+      // Only treat as "no progress" if URL/title stayed the same AND the count of empty required inputs did not decrease.
+      const sameUrlTitle = (o.url === oNext.url && o.title === oNext.title);
+      const noProgress = sameUrlTitle && (requiredEmptyCount(oNext) >= requiredEmptyCount(o));
+      if (noProgress && t % 4 === 3) {
+        logInfo("Replanning triggered", { step: t, reason: "no-progress" });
         P = await plan(goal, oNext);
         logInfo("Plan updated", { step: t, plan: P });
       }

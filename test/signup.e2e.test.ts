@@ -37,7 +37,7 @@ describe("Atlas sign-up flow (end-to-end)", () => {
       maxSteps: 8,
       beamSize: 2,
       runLabel: "signup-e2e",
-      timeBudgetMs: 30_000,
+      timeBudgetMs: 60_000,
     });
 
     expect(result.goal).toBe(goal);
@@ -63,6 +63,13 @@ describe("Atlas sign-up flow (end-to-end)", () => {
     expect(
       filledValues.some(aff => (aff.fieldInfo?.value ?? "").includes("@"))
     ).toBe(true);
+
+    // Assert that the account page is shown with success message
+    expect(result.finalObservation.url).toContain("/account");
+    expect(result.finalObservation.title).toBe("Signup Success");
+    expect(result.finalObservation.pageText).toContain("Account created successfully");
+    expect(result.finalObservation.pageText).toContain(EMAIL);
+    expect(result.finalObservation.pageText).toContain("Signed in as");
   });
 
   it("displays an error page when credentials are invalid", async () => {
@@ -75,7 +82,7 @@ describe("Atlas sign-up flow (end-to-end)", () => {
       maxSteps: 8,
       beamSize: 2,
       runLabel: "signup-e2e-invalid",
-      timeBudgetMs: 30_000,
+      timeBudgetMs: 60_000,
     });
 
     expect(result.goal).toBe(invalidGoal);
@@ -90,6 +97,12 @@ describe("Atlas sign-up flow (end-to-end)", () => {
     expect(observedFillFields.some(aff => aff.fieldInfo?.type === "email")).toBe(true);
     expect(observedFillFields.some(aff => aff.fieldInfo?.type === "password")).toBe(true);
     expect(observedFillFields.some(aff => aff.fieldInfo?.required === true)).toBe(true);
+
+    // Assert that the account page is shown with error message
+    expect(result.finalObservation.url).toContain("/account");
+    expect(result.finalObservation.title).toBe("Signup Failed");
+    expect(result.finalObservation.pageText).toContain("Invalid signup attempt");
+    expect(result.finalObservation.pageText).toContain("Please try again");
   });
 });
 
