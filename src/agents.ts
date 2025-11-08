@@ -111,20 +111,27 @@ const CandidatesSchema = z.object({
     .max(5),
 });
 
-// Minimal, generic form-state summary (no special-casing of field names)
+/**
+ * Generic, keyword-free summary of current input state.
+ * Counts required inputs with empty values and lists each input with value length.
+ */
 function summarizeFormState(o: Observation) {
   const inputs = (o.affordances as any[]).filter(a => a?.fieldInfo?.tagName === "input");
   const rows = inputs.map(a => {
     const fi = a.fieldInfo ?? {};
     const id = fi.name || fi.id || fi.label || a.description || "";
-    const t = fi.type || "text";
+    const type = fi.type || "text";
     const req = fi.required ? "required" : "optional";
     const val = (a.currentValue ?? fi.value ?? "") as string;
     const len = val ? String(val).length : 0;
-    return `• ${id} [type=${t}, ${req}, valueLen=${len}]`;
+    return `• ${id} [type=${type}, ${req}, valueLen=${len}]`;
   });
-  const missing = inputs.filter(a => a?.fieldInfo?.required && !((a.currentValue ?? a.fieldInfo?.value) ?? "").length);
-  return { table: rows.join("\n"), missingCount: missing.length };
+  const requiredEmpty = inputs.filter(a => {
+    const fi = a.fieldInfo ?? {};
+    const val = (a.currentValue ?? fi.value ?? "") as string;
+    return !!fi.required && String(val).length === 0;
+  }).length;
+  return { table: rows.join("\n"), requiredEmpty };
 }
 
 export async function propose(
@@ -155,8 +162,9 @@ ${affordanceHints}
 
 Observed input state (generic):
 ${fs.table}
+Required input empty: ${fs.requiredEmpty}
 
-Rule: When any required input has valueLen=0, prefer proposing 'fill' actions for those inputs before proposing clicks. Do not assume values are filled unless valueLen>0.`,
+Rule: When requiredEmpty>0, prefer proposing 'fill' actions for those inputs before proposing clicks. Do not assume values are filled unless valueLen>0.`,
       },
     ],
     { structuredOutput: { schema: CandidatesSchema } }
@@ -188,6 +196,7 @@ export async function critique(
     title: o.title,
     candidateCount: candidates.length,
   });
+  const fs = summarizeFormState(o);
   const candBlock = candidates
     .map((c, i) => `#${i} ${c.action.description} | selector=${c.action.selector ?? ""} | method=${c.action.method ?? ""}`)
     .join("\n");
@@ -201,10 +210,21 @@ export async function critique(
       {
         role: "user",
         content:
-          `Goal: ${goal}\nPlan: ${P.subgoals.map(s => s.text).join(" / ")}\n` +
-          `Observation: ${o.title} @ ${o.url}\nCandidates:\n${candBlock}\n` +
-          `Lookahead (cognitive map):\n${laBlock}\n` +
-          `Score each in [-1,1] and pick best index as 'chosenIndex'.`,
+`Goal: ${goal}
+Plan: ${P.subgoals.map(s => s.text).join(" / ")}
+Observation: ${o.title} @ ${o.url}
+
+Observed input state (generic):
+${fs.table}
+Required input empty: ${fs.requiredEmpty}
+
+Candidates:
+${candBlock}
+
+Lookahead (cognitive map):
+${laBlock}
+
+Score each in [-1,1] and pick best index as 'chosenIndex'.`,
       },
     ],
     { structuredOutput: { schema: CritiqueSchema } }
