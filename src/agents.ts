@@ -44,6 +44,7 @@ export const actorAgent = new Agent({
     "You are the Actor. Given the plan + current observation affordances, propose up to N safe next actions.",
     "Only propose actions visible in the observation; avoid destructive actions (delete/purchase).",
     "Return short rationales.",
+    "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
   ],
 });
 
@@ -81,19 +82,24 @@ export async function plan(goal: string, o0: Observation): Promise<Plan> {
   return (res.object as Plan) ?? { subgoals: [] };
 }
 
+const ActionSchema = z.object({
+  description: z.string(),
+  selector: z.string().nullable(),
+  method: z.string().nullable(),
+  arguments: z.array(z.string()).nullable(),
+  instruction: z.string().nullable(),
+});
+
 const CandidatesSchema = z.object({
-  candidates: z.array(
-    z.object({
-      rationale: z.string(),
-      action: z.object({
-        description: z.string(),
-        selector: z.string().optional(),
-        method: z.string().optional(),
-        arguments: z.array(z.string()).optional(),
-        instruction: z.string().optional(),
-      }),
-    })
-  ).min(1).max(5),
+  candidates: z
+    .array(
+      z.object({
+        rationale: z.string(),
+        action: ActionSchema,
+      })
+    )
+    .min(1)
+    .max(5),
 });
 
 export async function propose(

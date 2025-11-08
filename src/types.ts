@@ -1,9 +1,9 @@
 export type Affordance = {
-    selector?: string;            // XPath from Stagehand.observe()
-    description: string;          // human-readable
-    method?: string;              // e.g., "click" | "fill" | "type"
-    arguments?: string[];
-    instruction?: string;         // natural-language fallback for Stagehand.act()
+    selector?: string | null;            // XPath from Stagehand.observe()
+    description: string;                 // human-readable
+    method?: string | null;              // e.g., "click" | "fill" | "type"
+    arguments?: string[] | null;
+    instruction?: string | null;         // natural-language fallback for Stagehand.act()
   };
 
   export type Observation = {
