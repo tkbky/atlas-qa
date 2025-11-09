@@ -47,8 +47,15 @@ export const actorAgent = new Agent({
     "Only propose actions visible in the observation; avoid destructive actions (delete/purchase).",
     "Return short rationales.",
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
-    "When suggesting form interactions, prefer deterministic actions (fill/type/click).",
-    "For input fields, set method to 'fill' and provide the exact string to enter as the first item of 'arguments'. Do not leave fill arguments empty—copy the value from the goal or prior observations.",
+    "CRITICAL METHOD SELECTION RULES:",
+    "- For <input> elements: use method='fill' with the value as first argument",
+    "- For <select> elements: use method='selectOption' with the option value(s) as first argument",
+    "  - Single select: pass single value string matching an option's value attribute",
+    "  - Multi-select: pass ARRAY of individual option values, e.g., ['cooking', 'painting'] NOT 'cooking, painting'",
+    "- For <textarea> elements: use method='fill' with the text as first argument",
+    "- For checkboxes/radios: use method='click' (no arguments needed)",
+    "- For buttons/links: use method='click' (no arguments needed)",
+    "Do not leave fill/selectOption arguments empty—copy the value from the goal or prior observations.",
     "Provide one action per field (email, password, etc.) before submitting forms.",
   ],
 });
@@ -62,6 +69,8 @@ export const criticAgent = new Agent({
     "Score candidates in [-1,1] for goal alignment, recoverability, and plan consistency.",
     "Prefer actions that expose new affordances while avoiding dead-ends or irreversible transitions.",
     "Down-rank candidates that submit forms without first filling required fields with the goal-specified values.",
+    "IMPORTANT: If the goal explicitly requires filling an optional field, prioritize that over advancing.",
+    "Check goal/plan requirements before skipping 'optional' fields - they may be required by the task.",
   ],
 });
 
@@ -112,20 +121,58 @@ const CandidatesSchema = z.object({
 });
 
 /**
+ * Helper to identify form control elements.
+ * Includes all HTML form controls that can hold values: input, select, textarea.
+ */
+export function isFormControl(affordance: any): boolean {
+  const tagName = affordance?.fieldInfo?.tagName;
+  return ["input", "select", "textarea"].includes(tagName);
+}
+
+/**
+ * Determine the correct interaction method based on element type.
+ * This ensures we use the appropriate method for each form control type.
+ */
+export function getMethodForElement(affordance: any): string {
+  const fi = affordance?.fieldInfo ?? {};
+  const tagName = fi.tagName;
+  const type = fi.type;
+
+  // Select elements require selectOption
+  if (tagName === "select") {
+    return "selectOption";
+  }
+
+  // Checkboxes and radios require click
+  if (tagName === "input" && (type === "checkbox" || type === "radio")) {
+    return "click";
+  }
+
+  // Text inputs, textareas, and other input types use fill
+  if (tagName === "input" || tagName === "textarea") {
+    return "fill";
+  }
+
+  // Default for buttons, links, etc.
+  return "click";
+}
+
+/**
  * Generic, keyword-free summary of current input state.
  * Separates filled and empty inputs to make state explicit.
  */
 function summarizeFormState(o: Observation) {
-  const inputs = (o.affordances as any[]).filter(a => a?.fieldInfo?.tagName === "input");
+  const formControls = (o.affordances as any[]).filter(isFormControl);
 
   // Separate filled and empty inputs for clarity
   const filledInputs: string[] = [];
   const emptyInputs: string[] = [];
 
-  inputs.forEach(a => {
+  formControls.forEach(a => {
     const fi = a.fieldInfo ?? {};
     const id = fi.name || fi.id || fi.label || a.description || "";
-    const type = fi.type || "text";
+    const tagName = fi.tagName || "input";
+    const type = fi.type || (tagName === "select" ? "select" : tagName === "textarea" ? "textarea" : "text");
     const req = fi.required ? "required" : "optional";
     const val = (a.currentValue ?? fi.value ?? "") as string;
     const hasValue = val && String(val).length > 0;
@@ -140,7 +187,7 @@ function summarizeFormState(o: Observation) {
     }
   });
 
-  const requiredEmpty = inputs.filter(a => {
+  const requiredEmpty = formControls.filter(a => {
     const fi = a.fieldInfo ?? {};
     const val = (a.currentValue ?? fi.value ?? "") as string;
     return !!fi.required && String(val).length === 0;
@@ -160,7 +207,32 @@ export async function propose(
   N = 3
 ): Promise<Candidate[]> {
   const affordanceHints = o.affordances
-    .map(a => `- ${a.description}${(a as any).selector ? ` (selector=${(a as any).selector})` : ""}`)
+    .map(a => {
+      const fi = (a as any).fieldInfo ?? {};
+      const tagName = fi.tagName;
+      const type = fi.type;
+      let elementInfo = "";
+
+      // Add element type information to help agent choose correct method
+      if (tagName === "select") {
+        const isMultiple = fi.multiple;
+        if (isMultiple) {
+          elementInfo = " [MULTI-SELECT element - use selectOption with ARRAY of values]";
+        } else {
+          elementInfo = " [SELECT element - use selectOption]";
+        }
+      } else if (tagName === "input" && type === "checkbox") {
+        elementInfo = " [CHECKBOX - use click]";
+      } else if (tagName === "input" && type === "radio") {
+        elementInfo = " [RADIO - use click]";
+      } else if (tagName === "textarea") {
+        elementInfo = " [TEXTAREA - use fill]";
+      } else if (tagName === "input") {
+        elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
+      }
+
+      return `- ${a.description}${elementInfo}${(a as any).selector ? ` (selector=${(a as any).selector})` : ""}`;
+    })
     .join("\n");
   const fs = summarizeFormState(o);
 
@@ -179,8 +251,17 @@ ${fs.filledInputs.length > 0 ? `ALREADY FILLED (do NOT re-fill these):\n${fs.fil
 ${fs.emptyInputs.length > 0 ? `\nSTILL EMPTY (can be filled):\n${fs.emptyInputs}` : ''}
 Required inputs still empty: ${fs.requiredEmpty}
 
-CRITICAL RULE: Only propose 'fill' actions for inputs listed as "STILL EMPTY". Do NOT re-fill inputs shown as "ALREADY FILLED" - they already contain the correct values.
-When all required inputs are filled (Required inputs still empty: 0), propose clicking submit/next buttons instead.`;
+CRITICAL RULES:
+1. Only propose actions for inputs listed as "STILL EMPTY". Do NOT re-fill "ALREADY FILLED" inputs.
+2. Use the EXACT method shown in brackets for each element:
+   - [SELECT element - use selectOption] → method: "selectOption" with single value string
+   - [MULTI-SELECT element - use selectOption with ARRAY of values] → method: "selectOption" with array like ["value1", "value2"]
+   - [INPUT type=X - use fill] → method: "fill"
+   - [TEXTAREA - use fill] → method: "fill"
+   - [CHECKBOX - use click] → method: "click"
+   - [RADIO - use click] → method: "click"
+3. For multi-select: pass individual option values as array ["cooking", "painting"], NOT as single string "cooking, painting"
+4. When all required inputs are filled (Required inputs still empty: 0), propose clicking submit/next buttons.`;
 
   // Log the full prompt for debugging LLM reasoning
   logDebug("Actor agent prompt", { prompt: promptContent });

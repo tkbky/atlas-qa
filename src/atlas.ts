@@ -1,7 +1,7 @@
 import type { Observation, Plan, Candidate, Critique, Transition, Affordance } from "./types.js";
 import { CognitiveMap } from "./cognitiveMap.js";
 import { WebEnv } from "./browser.js";
-import { plan, propose, critique } from "./agents.js";
+import { plan, propose, critique, isFormControl } from "./agents.js";
 import {
   initRunLogger,
   logDebug,
@@ -42,10 +42,10 @@ export type AtlasRunArtifacts = {
 };
 
 // --- progress-aware helper (generic, keyword-free) ---
-// Treat "fewer empty required inputs" as progress even if URL/title are unchanged.
+// Treat "fewer empty required form controls" as progress even if URL/title are unchanged.
 const requiredEmptyCount = (o: Observation) =>
   o.affordances
-    .filter(a => (a as any)?.fieldInfo?.tagName === "input")
+    .filter(isFormControl)
     .filter(a => {
       const fi = (a as any).fieldInfo ?? {};
       const val = (a as any).currentValue ?? fi.value ?? "";
