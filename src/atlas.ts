@@ -56,6 +56,12 @@ const requiredEmptyCount = (o: Observation) =>
         return !!fi.required && String(val).length === 0;
       }
 
+      // Check datetime spinbuttons for availability (goal requires this)
+      if (description.includes("spinbutton") && description.includes("availability")) {
+        // Check if still showing placeholders (not filled)
+        return description.includes("dd") || description.includes("mm") || description.includes("yyyy");
+      }
+
       // Normal form controls
       const val = (a as any).currentValue ?? fi.value ?? "";
       return !!fi.required && String(val).length === 0;
@@ -200,21 +206,6 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
 
       logInfo("Selected action", { step: t, chosenIndex: critiqueRes.chosenIndex, action: choice });
 
-      // Check for no-op actions (all null) - treat as completion
-      const isNoOp = !choice.action.selector && !choice.action.method && !choice.action.instruction;
-      if (isNoOp) {
-        logInfo("No-op action detected, treating as completion", { step: t, description: choice.action.description });
-        endedReason = "success_heuristic";
-        break;
-      }
-
-      // Check success heuristic before executing action
-      if (/success|completed|done/i.test(o.title)) {
-        logInfo("Success heuristic matched, terminating run", { step: t, title: o.title });
-        endedReason = "success_heuristic";
-        break;
-      }
-
       // EXECUTE
       await web.act(choice.action);
       logInfo("Action executed", { step: t, action: choice.action });
@@ -223,67 +214,11 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const oNext = await web.currentObservation();
       logDebug("Observation after action", { step: t, observation: summarizeObservation(oNext) });
 
-      // Check success heuristic immediately after observation
-      if (/success|completed|done/i.test(oNext.title)) {
-        logInfo("Success heuristic matched after action, terminating run", { step: t, title: oNext.title });
-        // Enrich action with fieldInfo from observation if available
-        const enrichedAction = { ...choice.action };
-        if (choice.action.selector && !enrichedAction.fieldInfo) {
-          // Try to find matching affordance by selector first
-          let matchingAffordance = o.affordances.find(
-            a => a.selector === choice.action.selector
-          );
-          // If no exact match, try matching by ID or name from fieldInfo
-          if (!matchingAffordance) {
-            const actionId = choice.action.selector.replace(/^#/, '');
-            matchingAffordance = o.affordances.find(
-              a => a.fieldInfo?.id === actionId || a.fieldInfo?.name === actionId
-            );
-          }
-          if (matchingAffordance?.fieldInfo) {
-            enrichedAction.fieldInfo = matchingAffordance.fieldInfo;
-          }
-        }
-        // Record the step before breaking
-        steps.push({
-          step: t,
-          plan: clone(P),
-          candidates: clone(C),
-          critique: clone(critiqueRes),
-          chosenIndex: critiqueRes.chosenIndex,
-          action: clone(enrichedAction),
-          observationBefore: clone(o),
-          observationAfter: clone(oNext),
-        });
-        o = oNext;
-        endedReason = "success_heuristic";
-        break;
-      }
-
       // Remember last action for next-step steering
       lastAction = choice.action;
 
-      // Enrich action with fieldInfo from observation if available
-      const enrichedAction = { ...choice.action };
-      if (choice.action.selector && !enrichedAction.fieldInfo) {
-        // Try to find matching affordance by selector first
-        let matchingAffordance = o.affordances.find(
-          a => a.selector === choice.action.selector
-        );
-        // If no exact match, try matching by ID or name from fieldInfo
-        if (!matchingAffordance) {
-          const actionId = choice.action.selector.replace(/^#/, '');
-          matchingAffordance = o.affordances.find(
-            a => a.fieldInfo?.id === actionId || a.fieldInfo?.name === actionId
-          );
-        }
-        if (matchingAffordance?.fieldInfo) {
-          enrichedAction.fieldInfo = matchingAffordance.fieldInfo;
-        }
-      }
-
       const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
-      M.record(o, enrichedAction, oNext, delta);
+      M.record(o, choice.action, oNext, delta);
       logDebug("Cognitive map updated", { step: t, delta });
 
       steps.push({
@@ -292,7 +227,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         candidates: clone(C),
         critique: clone(critiqueRes),
         chosenIndex: critiqueRes.chosenIndex,
-        action: clone(enrichedAction),
+        action: clone(choice.action),
         observationBefore: clone(o),
         observationAfter: clone(oNext),
       });
@@ -308,6 +243,12 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       }
 
       o = oNext;
+
+      if (/success|completed|done/i.test(o.title)) {
+        logInfo("Success heuristic matched, terminating run", { step: t, title: o.title });
+        endedReason = "success_heuristic";
+        break;
+      }
     }
 
     runArtifacts = {

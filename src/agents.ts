@@ -1,7 +1,8 @@
+import "dotenv/config";
 import { z } from "zod";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
-import { LibSQLStore } from "@mastra/libsql";
+import { LibSQLStore, LibSQLVector } from "@mastra/libsql";
 import type { Observation, Plan, Candidate, Critique } from "./types.js";
 import { logDebug, logInfo } from "./logger.js";
 
@@ -18,11 +19,16 @@ const storage = new LibSQLStore({
   url: "file:./mastra.db",
 });
 
-const memory = new Memory({
+export const memory = new Memory({
   storage,
+  vector: new LibSQLVector({ connectionUrl: "file:./mastra-vectors.db" }),
+  embedder: "openai/text-embedding-3-small",
   options: {
     lastMessages: 12,
-    workingMemory: { enabled: true }, // thread-scoped scratchpad
+    workingMemory: { enabled: true },            // episode scratchpad
+    semanticRecall: { topK: 4, messageRange: 2,  // enables cross-thread/domain recall
+      scope: "resource" },
+    threads: { generateTitle: true },
   },
 });
 
@@ -48,21 +54,16 @@ export const actorAgent = new Agent({
     "Return short rationales.",
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
     "CRITICAL METHOD SELECTION RULES:",
-    "- For <input> elements: use method='fill' with the value as first argument.",
-    "- For temporal inputs (<input type='date'|'time'|'datetime-local'|'month'>):",
-    "  - PREFER direct fill of the native input value using ISO-local strings:",
-    "    • date: 'YYYY-MM-DD'",
-    "    • time: 'HH:MM'",
-    "    • month: 'YYYY-MM'",
-    "    • datetime-local: 'YYYY-MM-DDTHH:MM' (no timezone)",
-    "  - After fill, do NOT rely on segmented 'spinbutton' controls; they may be decorative. Only click a 'Show local date and time picker' button if direct fill is not possible.",
-    "  - Use a future date/time when the goal requires it.",
-    "- Prefer filling obvious required text inputs (like 'Event name') before interacting with temporal inputs or pickers.",
+    "- For <input> elements: use method='fill' with the value as first argument",
+    "- For <input type='datetime-local'>: PREFER DIRECT FILL with ISO local format 'YYYY-MM-DDTHH:mm' (24-hour).",
+    "  - When the goal specifies date parts (Year/Month/Day/Hours/Minutes/AM-PM), COMPOSE ONE ISO STRING and use method='fill' with that single value.",
+    "  - Only use a picker/spinbuttons if direct fill is not available or fails.",
+    "  - Do NOT repeatedly click the 'Show local date and time picker' button.",
     "- For <select> elements: use method='selectOption' with the option value(s) as first argument",
     "  - Single select: pass single value string matching an option's value attribute",
-    "  - Multi-select: pass ARRAY of individual option values, e.g. ['cooking', 'painting'] NOT 'cooking, painting'",
+    "  - Multi-select: pass ARRAY of individual option values, e.g., ['cooking', 'painting'] NOT 'cooking, painting'",
     "- For <textarea> elements: use method='fill' with the text as first argument",
-    "- Avoid interacting with 'spinbutton' date/time segments unless the native field cannot be filled directly.",
+    "- For spinbutton controls (segmented date/time inputs): use method='fill' with the appropriate segment value",
     "- For checkboxes/radios: use method='click' (no arguments needed)",
     "- For buttons/links: use method='click' (no arguments needed)",
     "Do not leave fill/selectOption arguments empty—copy the value from the goal or prior observations.",
@@ -80,8 +81,8 @@ export const criticAgent = new Agent({
     "Prefer actions that expose new affordances while avoiding dead-ends or irreversible transitions.",
     "Down-rank candidates that submit forms without first filling required fields with the goal-specified values.",
     "IMPORTANT: If the goal explicitly requires filling an optional field, prioritize that over advancing.",
-    "TEMPORAL INPUT RULE: Prefer direct native 'fill' with ISO-local strings for date/time/month/datetime-local. Down-rank candidates that click segmented pickers or 'Show local date and time picker' when the native input can be filled directly.",
-    "FIELD ORDERING RULE: If multiple required fields are empty, prefer filling text fields (e.g., Event name) before temporal inputs.",
+    "DATETIME-LOCAL ORDERING RULE: Prefer a single ISO 'YYYY-MM-DDTHH:mm' direct fill on the <input type='datetime-local'> when present.",
+    "Down-rank actions that click the picker or edit spinbuttons if direct fill on the input is available. Resort to picker/spinbuttons only when direct fill is unavailable.",
     "Check goal/plan requirements before skipping 'optional' fields - they may be required by the task.",
   ],
 });
@@ -367,14 +368,15 @@ export async function propose(
     } else if (tagName === "textarea") {
       elementInfo = " [TEXTAREA - use fill]";
     } else if (tagName === "input") {
-      const t = (type || "").toLowerCase();
-      if (["date", "time", "datetime-local", "month"].includes(t)) {
-        elementInfo = ` [INPUT type=${t} - PREFER direct ISO fill (local)]`;
+      // Special-case datetime-local to encourage direct ISO fill
+      if ((type || "").toLowerCase() === "datetime-local") {
+        elementInfo = " [DATETIME-LOCAL - PREFER direct ISO fill 'YYYY-MM-DDTHH:mm']";
       } else {
-        elementInfo = ` [INPUT type=${t || "text"} - use fill]`;
+        elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
       }
     } else if (description.toLowerCase().includes("spinbutton")) {
-      elementInfo = " [DATETIME-SEGMENT - avoid unless native fill fails]";
+      // Provide context but avoid over-prioritizing segments
+      elementInfo = " [DATETIME-SEGMENT]";
     }
 
     return {
