@@ -53,6 +53,7 @@ export const actorAgent = new Agent({
     "  - Click the button labeled 'Show local date and time picker', then set Day, Month, Year, Hours, Minutes, and AM/PM using the spinbuttons",
     "  - Use a future date/time when the task requires it",
     "  - If the picker/spinbuttons are NOT visible/available, then use method='fill' with ISO 'YYYY-MM-DDThh:mm' (e.g., '2035-07-15T14:30')",
+    "  - Do NOT click the 'Show local date and time picker' button more than once; if it remains visible, proceed to set the segments anyway",
     "- For <select> elements: use method='selectOption' with the option value(s) as first argument",
     "  - Single select: pass single value string matching an option's value attribute",
     "  - Multi-select: pass ARRAY of individual option values, e.g., ['cooking', 'painting'] NOT 'cooking, painting'",
@@ -75,6 +76,8 @@ export const criticAgent = new Agent({
     "Prefer actions that expose new affordances while avoiding dead-ends or irreversible transitions.",
     "Down-rank candidates that submit forms without first filling required fields with the goal-specified values.",
     "IMPORTANT: If the goal explicitly requires filling an optional field, prioritize that over advancing.",
+    "DATETIME-LOCAL ORDERING RULE: If a 'Show local date and time picker' button is visible and the datetime-local field is still empty, down-rank any candidates that attempt to edit spinbutton segments before clicking the picker.",
+    "Only once the picker has been opened (or when no picker is available) should candidates to set Day/Month/Year/Hours/Minutes/AM-PM be preferred over ISO fill. If neither picker nor segments are available, ISO 'fill' is acceptable.",
     "Check goal/plan requirements before skipping 'optional' fields - they may be required by the task.",
   ],
 });
@@ -287,40 +290,61 @@ export async function propose(
   o: Observation,
   N = 3
 ): Promise<Candidate[]> {
-  const affordanceHints = o.affordances
-    .map(a => {
-      const fi = (a as any).fieldInfo ?? {};
-      const tagName = fi.tagName;
-      const type = fi.type;
-      let elementInfo = "";
+  const hasPickerButton = o.affordances.some(a =>
+    (a as any).description?.toLowerCase().includes("show local date and time picker")
+  );
 
-      // Add element type information to help agent choose correct method
-      if (tagName === "select") {
-        const isMultiple = fi.multiple;
-        if (isMultiple) {
-          elementInfo = " [MULTI-SELECT element - use selectOption with ARRAY of values]";
-        } else {
-          elementInfo = " [SELECT element - use selectOption]";
-        }
-      } else if (tagName === "input" && type === "checkbox") {
-        elementInfo = " [CHECKBOX - use click]";
-      } else if (tagName === "input" && type === "radio") {
-        elementInfo = " [RADIO - use click]";
-      } else if (tagName === "textarea") {
-        elementInfo = " [TEXTAREA - use fill]";
-      } else if (tagName === "input") {
-        // Special-case datetime-local to encourage picker + spinbuttons
-        if ((type || "").toLowerCase() === "datetime-local") {
-          elementInfo =
-            " [DATETIME-LOCAL - use picker/spinbuttons: click 'Show local date and time picker' then set Day/Month/Year/Hours/Minutes/AM-PM]";
-        } else {
-          elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
-        }
+  const affordanceLines = o.affordances.map(a => {
+    const fi = (a as any).fieldInfo ?? {};
+    const tagName = fi.tagName;
+    const type = fi.type;
+    const description = (a as any).description || "";
+    let elementInfo = "";
+
+    // Add element type information to help agent choose correct method
+    if (tagName === "select") {
+      const isMultiple = fi.multiple;
+      if (isMultiple) {
+        elementInfo = " [MULTI-SELECT element - use selectOption with ARRAY of values]";
+      } else {
+        elementInfo = " [SELECT element - use selectOption]";
       }
+    } else if (tagName === "input" && type === "checkbox") {
+      elementInfo = " [CHECKBOX - use click]";
+    } else if (tagName === "input" && type === "radio") {
+      elementInfo = " [RADIO - use click]";
+    } else if (tagName === "textarea") {
+      elementInfo = " [TEXTAREA - use fill]";
+    } else if (tagName === "input") {
+      // Special-case datetime-local to encourage picker + spinbuttons
+      if ((type || "").toLowerCase() === "datetime-local") {
+        elementInfo =
+          " [DATETIME-LOCAL - use picker/spinbuttons: click 'Show local date and time picker' then set Day/Month/Year/Hours/Minutes/AM-PM]";
+      } else {
+        elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
+      }
+    } else if (description.toLowerCase().includes("spinbutton")) {
+      elementInfo = hasPickerButton
+        ? " [DATETIME-SEGMENT - set only AFTER opening the picker]"
+        : " [DATETIME-SEGMENT]";
+    }
 
-      return `- ${a.description}${elementInfo}${(a as any).selector ? ` (selector=${(a as any).selector})` : ""}`;
-    })
-    .join("\n");
+    return {
+      descriptionLine: `- ${description}${elementInfo}${(a as any).selector ? ` (selector=${(a as any).selector})` : ""}`,
+      isPicker: description.toLowerCase().includes("show local date and time picker"),
+    };
+  });
+
+  // Reorder to list picker button first if present
+  if (hasPickerButton) {
+    affordanceLines.sort((a, b) => {
+      if (a.isPicker && !b.isPicker) return -1;
+      if (!a.isPicker && b.isPicker) return 1;
+      return 0;
+    });
+  }
+
+  const affordanceHints = affordanceLines.map(l => l.descriptionLine).join("\n");
   const fs = summarizeFormState(o);
 
   logInfo("Actor agent invoked", { goal, subgoals: P.subgoals, url: o.url, title: o.title, beam: N });
@@ -345,7 +369,7 @@ CRITICAL RULES:
    - [MULTI-SELECT element - use selectOption with ARRAY of values] → method: "selectOption" with array like ["value1", "value2"]
    - [INPUT type=X - use fill] → method: "fill"
    - [TEXTAREA - use fill] → method: "fill"
-   - For DATETIME-LOCAL: prefer picker/spinbuttons ('Show local date and time picker' button, then set segments). Use ISO fill 'YYYY-MM-DDThh:mm' ONLY if picker/spinbuttons aren't visible.
+   - For DATETIME-LOCAL: click 'Show local date and time picker' ONCE, then set the Day/Month/Year/Hours/Minutes/AM-PM segments. If the picker remains visible, proceed to set segments anyway (do NOT keep clicking the picker). Use ISO fill 'YYYY-MM-DDThh:mm' ONLY if picker/spinbuttons aren't visible.
    - [CHECKBOX - use click] → method: "click"
    - [RADIO - use click] → method: "click"
 3. For multi-select: pass individual option values as array ["cooking", "painting"], NOT as single string "cooking, painting"
@@ -413,6 +437,7 @@ ${laBlock}
 
 CRITICAL: Down-rank candidates that try to re-fill inputs shown as "ALREADY FILLED".
 When Required inputs still empty = 0, prefer candidates that advance the flow (e.g., clicking Next/Submit buttons).
+For DATETIME-LOCAL: If a 'Show local date and time picker' button is visible and the datetime-local field is empty, prefer clicking it ONCE and then setting segments. Down-rank repeated clicks on the picker; if it remains visible after the first click, proceed to set the segments. Use ISO fill only if neither picker nor segments are available.
 Score each in [-1,1] and pick best index as 'chosenIndex'.`;
 
   // Log the full prompt for debugging LLM reasoning

@@ -102,6 +102,9 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
     let P = await plan(goal, o);
     logInfo("Initial plan generated", { plan: P });
 
+    // Track last executed action to influence subsequent proposals (e.g., avoid repeated picker clicks)
+    let lastAction: Affordance | null = null;
+
     for (let t = 0; t < maxSteps; t++) {
       logInfo("Step started", { step: t, plan: P.subgoals });
 
@@ -111,8 +114,14 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         break;
       }
 
+      // Nudge the Actor with context derived from last action to prevent loops (e.g., repeated picker clicks)
+      let augmentedGoal = goal;
+      if (lastAction?.description?.toLowerCase().includes("show local date and time picker")) {
+        augmentedGoal = `${goal} (date/time picker already clicked; now set Year/Month/Day/Hours/Minutes/AM-PM via segmented controls—do NOT click the picker again)`;
+      }
+
       // Ask for at least 2 so the Critic has a choice
-      let C = await propose(goal, P, o, Math.max(beamSize, 2));
+      let C = await propose(augmentedGoal, P, o, Math.max(beamSize, 2));
       logInfo("Candidates proposed", { step: t, candidates: C });
       if (C.length === 0) {
         logWarn("No candidates proposed, terminating loop", { step: t });
@@ -129,20 +138,62 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const choiceIdx = Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex));
       let choice = C[choiceIdx];
 
-      // If any required input has empty value, don't execute *any* click yet—ask for a fill first.
+      // If any required input has empty value, generally don't execute clicks yet—ask for a fill first.
+      // EXCEPTIONS:
+      // - Allow clicking the 'Show local date and time picker' button once for datetime-local workflows
+      // - If the only required empty input is a datetime-local, allow proceeding without gating
       const inputs = o.affordances.filter(a => (a as any)?.fieldInfo?.tagName === "input");
       const requiredEmpty = inputs.filter(a => {
         const fi = (a as any).fieldInfo ?? {};
         const val = (a as any).currentValue ?? fi.value ?? "";
         return !!fi.required && String(val).length === 0;
       });
+      // Count required empty inputs that are NOT datetime-local
+      const requiredEmptyNonDatetime = inputs.filter(a => {
+        const fi = (a as any).fieldInfo ?? {};
+        const val = (a as any).currentValue ?? fi.value ?? "";
+        if (!(!!fi.required && String(val).length === 0)) return false;
+        return (fi.type || "").toLowerCase() !== "datetime-local";
+      }).length;
       const hasFillOption = o.affordances.some(a => a.method === "fill");
       const isClick = choice.action.method === "click";
+      const isPickerClick =
+        isClick &&
+        (choice.action.description?.toLowerCase().includes("show local date and time picker") ?? false);
+      const repeatedPickerClick =
+        isPickerClick &&
+        (lastAction?.description?.toLowerCase().includes("show local date and time picker") ?? false);
+
       if (isClick && requiredEmpty.length > 0 && hasFillOption) {
-        // Do not execute; ask the Actor again with a tiny nudge toward completeness.
-        C = await propose(`${goal} (fill required inputs with empty values before any clicks)`, P, o, Math.max(beamSize, 3));
-        if (C.length === 0) { P = await plan(goal, o); continue; }
-        choice = C[0];
+        // Skip gating when only datetime-local remains or when clicking the picker for the first time
+        if (!isPickerClick && requiredEmptyNonDatetime > 0) {
+          // Do not execute; ask the Actor again with a tiny nudge toward completeness.
+          C = await propose(
+            `${goal} (fill required inputs with empty values before any clicks)`,
+            P,
+            o,
+            Math.max(beamSize, 3),
+          );
+          if (C.length === 0) {
+            P = await plan(goal, o);
+            continue;
+          }
+          choice = C[0];
+        }
+      }
+
+      // Prevent repeated picker clicks if the last action already clicked the picker
+      if (repeatedPickerClick) {
+        const noRepeatGoal = `${goal} (picker already clicked; now set Year/Month/Day/Hours/Minutes/AM-PM via segmented controls—do NOT click the picker again)`;
+        const newCandidates = await propose(noRepeatGoal, P, o, Math.max(beamSize, 3));
+        const alt = newCandidates.find(c =>
+          !(c.action.description?.toLowerCase().includes("show local date and time picker") ?? false)
+        );
+        if (alt) {
+          C = newCandidates;
+          choice = alt;
+          logInfo("Avoiding repeated picker click; selecting segment-setting candidate instead", { step: t, choice });
+        }
       }
       // ---------------------------- optional critic veto ----------------------------
       const best = critiqueRes.ranked?.[0];
@@ -162,6 +213,9 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // OBSERVE NEXT
       const oNext = await web.currentObservation();
       logDebug("Observation after action", { step: t, observation: summarizeObservation(oNext) });
+
+      // Remember last action for next-step steering
+      lastAction = choice.action;
 
       const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
       M.record(o, choice.action, oNext, delta);
