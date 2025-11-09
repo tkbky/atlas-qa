@@ -34,8 +34,7 @@ describe("Atlas datetime-local form (end-to-end)", () => {
   it("completes the form with a valid future datetime-local input", async () => {
     const goal = [
       `Fill out the event scheduling form with event name "Team Meeting".`,
-      `Click "Show local date and time picker", then set a clearly future datetime using the segmented controls:`,
-      `Year 2035, Month 07, Day 15, Hours 02, Minutes 30, AM/PM set to PM.`,
+      `Set the event date and time to Year 2035, Month 07, Day 15, Hours 02, Minutes 30, PM.`,
       `Submit the form and verify the confirmation page shows "Team Meeting" and confirms scheduling.`
     ].join(" ");
 
@@ -59,11 +58,21 @@ describe("Atlas datetime-local form (end-to-end)", () => {
     expect(final.pageText).toContain("Team Meeting");
     expect(final.pageText).toContain("Event scheduled successfully");
 
-    // Verify datetime-local input was filled
-    const fillAffordances = result.steps.flatMap(step =>
-      step.observationBefore.affordances.filter(aff => aff.method?.toLowerCase() === "fill")
-    );
-    expect(fillAffordances.some(aff => aff.fieldInfo?.type === "datetime-local")).toBe(true);
+    // Verify datetime-local input was filled with direct ISO fill
+    const executedFillActions = result.steps
+      .filter(step => step.action.method?.toLowerCase() === "fill")
+      .map(step => step.action);
+
+    const datetimeLocalFill = executedFillActions.find(action => {
+      const type = action.fieldInfo?.type?.toLowerCase();
+      const desc = action.description?.toLowerCase() || "";
+      return type === "datetime-local" || desc.includes("datetime-local");
+    });
+
+    expect(datetimeLocalFill).toBeDefined();
+    expect(datetimeLocalFill?.arguments?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    // Verify it matches the expected ISO format: 2035-07-15T14:30 (2 PM = 14:00)
+    expect(datetimeLocalFill?.arguments?.[0]).toBe("2035-07-15T14:30");
   });
 
   it("displays validation error when datetime is in the past", async () => {
