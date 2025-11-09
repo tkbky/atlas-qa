@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Stagehand } from "@browserbasehq/stagehand";
 import type { Observation, Affordance, FormFieldInfo } from "./types.js";
 import { logDebug, logInfo, logWarn } from "./logger.js";
+import { applyTemporalInput } from "./strategies/TemporalInputStrategy.js";
 
 /**
  * Thin Stagehand v3 wrapper
@@ -18,9 +19,11 @@ export class WebEnv {
   private sh!: Stagehand;
 
   async init(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
-    this.sh = new Stagehand({ env, experimental: true });
+    // Disable experimental V3 context to avoid "V3 context not initialized" crash
+    // seen in logs when filling datetime-local. We only need stable primitives.
+    this.sh = new Stagehand({ env, experimental: false });
     await this.sh.init();
-    logInfo("Stagehand environment initialized", { env, experimental: true });
+    logInfo("Stagehand environment initialized", { env, experimental: false });
   }
 
   get page() {
@@ -65,6 +68,27 @@ export class WebEnv {
   }
 
   async act(a: Affordance) {
+    // Augment 'fill' for temporal inputs to use a robust native setter.
+    if ((a.method || "").toLowerCase() === "fill" && a.selector) {
+      try {
+        // Ask the page for the element type so we only intercept temporal inputs.
+        const t = await this.page.evaluate((sel: string) => {
+          const el = document.querySelector(sel) as HTMLInputElement | null;
+          return (el?.type || "").toLowerCase();
+        }, a.selector);
+
+        if (["date", "time", "datetime-local", "month"].includes(t)) {
+          const v = (a.arguments && a.arguments[0]) || "";
+          await applyTemporalInput(this.page, a.selector, v);
+          logInfo("Action completed", { description: a.description, method: "temporal-input-fill" });
+          return;
+        }
+      } catch (e) {
+        // Fall through to default executor if type lookup fails
+        logDebug("Temporal input detection failed, falling back to default", { error: e });
+      }
+    }
+
     const action: Affordance = {
       ...a,
       arguments: a.arguments ? [...a.arguments] : undefined,
@@ -79,6 +103,7 @@ export class WebEnv {
       arguments: action.arguments,
     });
 
+    // Default path (Stagehand/Playwright/etc.)
     if (action.selector && action.method) {
       await this.sh.act({
         selector: action.selector,

@@ -48,17 +48,21 @@ export const actorAgent = new Agent({
     "Return short rationales.",
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
     "CRITICAL METHOD SELECTION RULES:",
-    "- For <input> elements: use method='fill' with the value as first argument",
-    "- For <input type='datetime-local'>: prefer using the local date/time picker and segmented spinbuttons",
-    "  - Click the button labeled 'Show local date and time picker', then set Day, Month, Year, Hours, Minutes, and AM/PM using the spinbuttons",
-    "  - Use a future date/time when the task requires it",
-    "  - If the picker/spinbuttons are NOT visible/available, then use method='fill' with ISO 'YYYY-MM-DDThh:mm' (e.g., '2035-07-15T14:30')",
-    "  - Do NOT click the 'Show local date and time picker' button more than once; if it remains visible, proceed to set the segments anyway",
+    "- For <input> elements: use method='fill' with the value as first argument.",
+    "- For temporal inputs (<input type='date'|'time'|'datetime-local'|'month'>):",
+    "  - PREFER direct fill of the native input value using ISO-local strings:",
+    "    • date: 'YYYY-MM-DD'",
+    "    • time: 'HH:MM'",
+    "    • month: 'YYYY-MM'",
+    "    • datetime-local: 'YYYY-MM-DDTHH:MM' (no timezone)",
+    "  - After fill, do NOT rely on segmented 'spinbutton' controls; they may be decorative. Only click a 'Show local date and time picker' button if direct fill is not possible.",
+    "  - Use a future date/time when the goal requires it.",
+    "- Prefer filling obvious required text inputs (like 'Event name') before interacting with temporal inputs or pickers.",
     "- For <select> elements: use method='selectOption' with the option value(s) as first argument",
     "  - Single select: pass single value string matching an option's value attribute",
-    "  - Multi-select: pass ARRAY of individual option values, e.g., ['cooking', 'painting'] NOT 'cooking, painting'",
+    "  - Multi-select: pass ARRAY of individual option values, e.g. ['cooking', 'painting'] NOT 'cooking, painting'",
     "- For <textarea> elements: use method='fill' with the text as first argument",
-    "- For spinbutton controls (segmented date/time inputs): use method='fill' with the appropriate segment value",
+    "- Avoid interacting with 'spinbutton' date/time segments unless the native field cannot be filled directly.",
     "- For checkboxes/radios: use method='click' (no arguments needed)",
     "- For buttons/links: use method='click' (no arguments needed)",
     "Do not leave fill/selectOption arguments empty—copy the value from the goal or prior observations.",
@@ -76,8 +80,8 @@ export const criticAgent = new Agent({
     "Prefer actions that expose new affordances while avoiding dead-ends or irreversible transitions.",
     "Down-rank candidates that submit forms without first filling required fields with the goal-specified values.",
     "IMPORTANT: If the goal explicitly requires filling an optional field, prioritize that over advancing.",
-    "DATETIME-LOCAL ORDERING RULE: If a 'Show local date and time picker' button is visible and the datetime-local field is still empty, down-rank any candidates that attempt to edit spinbutton segments before clicking the picker.",
-    "Only once the picker has been opened (or when no picker is available) should candidates to set Day/Month/Year/Hours/Minutes/AM-PM be preferred over ISO fill. If neither picker nor segments are available, ISO 'fill' is acceptable.",
+    "TEMPORAL INPUT RULE: Prefer direct native 'fill' with ISO-local strings for date/time/month/datetime-local. Down-rank candidates that click segmented pickers or 'Show local date and time picker' when the native input can be filled directly.",
+    "FIELD ORDERING RULE: If multiple required fields are empty, prefer filling text fields (e.g., Event name) before temporal inputs.",
     "Check goal/plan requirements before skipping 'optional' fields - they may be required by the task.",
   ],
 });
@@ -159,6 +163,53 @@ export function isFormControl(affordance: any): boolean {
   }
 
   return false;
+}
+
+/**
+ * Parse a goal string for explicit date/time parts and return an ISO local string (YYYY-MM-DDTHH:mm),
+ * or null if not all parts are present. This avoids website-specific heuristics by deriving only from the goal text.
+ */
+function deriveIsoLocalFromGoal(goal: string): string | null {
+  const g = goal.toLowerCase();
+  // Year
+  const yearMatch = /year\s+(\d{4})/.exec(g);
+  // Month (allow "07" or "July")
+  const monthNumber = (() => {
+    const m1 = /month\s+(\d{1,2})/.exec(g);
+    if (m1) return String(m1[1]).padStart(2, "0");
+    const months = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+    const m2 = new RegExp(`month\\s+(${months.join("|")})`).exec(g);
+    if (m2) {
+      const idx = months.indexOf(m2[1]) + 1;
+      return String(idx).padStart(2, "0");
+    }
+    return null;
+  })();
+  // Day
+  const dayMatch = /day\s+(\d{1,2})/.exec(g);
+  // Hour + Minute + AM/PM
+  const hourMatch = /hours?\s+(\d{1,2})/.exec(g);
+  const minuteMatch = /minutes?\s+(\d{1,2})/.exec(g);
+  const ampmMatch = /\b(am|pm)\b/.exec(g);
+
+  if (!yearMatch || !monthNumber || !dayMatch || !hourMatch || !minuteMatch) return null;
+  const yyyy = yearMatch[1];
+  const MM = monthNumber;
+  const dd = String(parseInt(dayMatch[1], 10)).padStart(2, "0");
+  let HH = parseInt(hourMatch[1], 10);
+  const mm = String(parseInt(minuteMatch[1], 10)).padStart(2, "0");
+
+  // Normalize 12h → 24h if AM/PM is specified
+  if (ampmMatch) {
+    const ampm = ampmMatch[1];
+    if (ampm === "am") {
+      if (HH === 12) HH = 0;
+    } else if (ampm === "pm") {
+      if (HH !== 12) HH = (HH + 12) % 24;
+    }
+  }
+  const HHs = String(HH).padStart(2, "0");
+  return `${yyyy}-${MM}-${dd}T${HHs}:${mm}`;
 }
 
 /**
@@ -316,17 +367,14 @@ export async function propose(
     } else if (tagName === "textarea") {
       elementInfo = " [TEXTAREA - use fill]";
     } else if (tagName === "input") {
-      // Special-case datetime-local to encourage picker + spinbuttons
-      if ((type || "").toLowerCase() === "datetime-local") {
-        elementInfo =
-          " [DATETIME-LOCAL - use picker/spinbuttons: click 'Show local date and time picker' then set Day/Month/Year/Hours/Minutes/AM-PM]";
+      const t = (type || "").toLowerCase();
+      if (["date", "time", "datetime-local", "month"].includes(t)) {
+        elementInfo = ` [INPUT type=${t} - PREFER direct ISO fill (local)]`;
       } else {
-        elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
+        elementInfo = ` [INPUT type=${t || "text"} - use fill]`;
       }
     } else if (description.toLowerCase().includes("spinbutton")) {
-      elementInfo = hasPickerButton
-        ? " [DATETIME-SEGMENT - set only AFTER opening the picker]"
-        : " [DATETIME-SEGMENT]";
+      elementInfo = " [DATETIME-SEGMENT - avoid unless native fill fails]";
     }
 
     return {
@@ -385,10 +433,36 @@ CRITICAL RULES:
     ],
     { structuredOutput: { schema: CandidatesSchema } }
   );
-  const candidates = res.object?.candidates as Candidate[] || [];
-  logInfo("Actor agent response received", { candidateCount: candidates.length });
-  logDebug("Actor agent candidates detail", { candidates });
-  return candidates;
+  let C = (res.object as { candidates: Candidate[] })?.candidates ?? [];
+
+  // Deterministic candidate injection: direct ISO fill for <input type="datetime-local"> when present & empty.
+  try {
+    const iso = deriveIsoLocalFromGoal(goal);
+    if (iso) {
+      const dtAff = o.affordances.find(a => {
+        const fi = (a as any).fieldInfo ?? {};
+        const isDt = (fi.type || "").toLowerCase() === "datetime-local";
+        const descDt = ((a as any).description || "").toLowerCase().includes("datetime-local");
+        const currentVal = (a as any).currentValue ?? fi.value ?? "";
+        return (isDt || descDt) && String(currentVal).length === 0;
+      });
+      if (dtAff) {
+        const selector = (dtAff as any).selector ?? (dtAff as any).fieldInfo?.id ? `#${(dtAff as any).fieldInfo.id}` : null;
+        C.unshift({
+          rationale: "Directly fill the datetime-local input with a single ISO local string derived from the goal.",
+          action: {
+            description: "Fill the datetime-local input with ISO 'YYYY-MM-DDTHH:mm'",
+            selector,
+            method: "fill",
+            arguments: [iso],
+            instruction: `Fill the datetime-local input with ${iso}`,
+          },
+        } as Candidate);
+      }
+    }
+  } catch { /* best-effort; ignore parsing errors */ }
+
+  return C.slice(0, N);
 }
 
 const CritiqueSchema = z.object({
