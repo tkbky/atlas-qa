@@ -49,14 +49,15 @@ export const actorAgent = new Agent({
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
     "CRITICAL METHOD SELECTION RULES:",
     "- For <input> elements: use method='fill' with the value as first argument",
-    "- For <input type='datetime-local'>: use method='fill' with ISO format 'YYYY-MM-DDThh:mm' (e.g., '2024-12-25T14:30')",
-    "  - Must use future date/time if the goal requires 'future' or 'next' availability",
-    "  - Generate a date approximately 7-30 days in the future with a reasonable time (e.g., 14:30 or 10:00)",
+    "- For <input type='datetime-local'>: prefer using the local date/time picker and segmented spinbuttons",
+    "  - Click the button labeled 'Show local date and time picker', then set Day, Month, Year, Hours, Minutes, and AM/PM using the spinbuttons",
+    "  - Use a future date/time when the task requires it",
+    "  - If the picker/spinbuttons are NOT visible/available, then use method='fill' with ISO 'YYYY-MM-DDThh:mm' (e.g., '2035-07-15T14:30')",
     "- For <select> elements: use method='selectOption' with the option value(s) as first argument",
     "  - Single select: pass single value string matching an option's value attribute",
     "  - Multi-select: pass ARRAY of individual option values, e.g., ['cooking', 'painting'] NOT 'cooking, painting'",
     "- For <textarea> elements: use method='fill' with the text as first argument",
-    "- For spinbutton controls (if datetime-local not available): use method='fill' with appropriate values",
+    "- For spinbutton controls (segmented date/time inputs): use method='fill' with the appropriate segment value",
     "- For checkboxes/radios: use method='click' (no arguments needed)",
     "- For buttons/links: use method='click' (no arguments needed)",
     "Do not leave fill/selectOption arguments empty—copy the value from the goal or prior observations.",
@@ -308,7 +309,13 @@ export async function propose(
       } else if (tagName === "textarea") {
         elementInfo = " [TEXTAREA - use fill]";
       } else if (tagName === "input") {
-        elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
+        // Special-case datetime-local to encourage picker + spinbuttons
+        if ((type || "").toLowerCase() === "datetime-local") {
+          elementInfo =
+            " [DATETIME-LOCAL - use picker/spinbuttons: click 'Show local date and time picker' then set Day/Month/Year/Hours/Minutes/AM-PM]";
+        } else {
+          elementInfo = ` [INPUT type=${type || "text"} - use fill]`;
+        }
       }
 
       return `- ${a.description}${elementInfo}${(a as any).selector ? ` (selector=${(a as any).selector})` : ""}`;
@@ -338,6 +345,7 @@ CRITICAL RULES:
    - [MULTI-SELECT element - use selectOption with ARRAY of values] → method: "selectOption" with array like ["value1", "value2"]
    - [INPUT type=X - use fill] → method: "fill"
    - [TEXTAREA - use fill] → method: "fill"
+   - For DATETIME-LOCAL: prefer picker/spinbuttons ('Show local date and time picker' button, then set segments). Use ISO fill 'YYYY-MM-DDThh:mm' ONLY if picker/spinbuttons aren't visible.
    - [CHECKBOX - use click] → method: "click"
    - [RADIO - use click] → method: "click"
 3. For multi-select: pass individual option values as array ["cooking", "painting"], NOT as single string "cooking, painting"

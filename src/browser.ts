@@ -18,9 +18,9 @@ export class WebEnv {
   private sh!: Stagehand;
 
   async init(env: "LOCAL" | "BROWSERBASE" = "LOCAL") {
-    this.sh = new Stagehand({ env });
+    this.sh = new Stagehand({ env, experimental: true });
     await this.sh.init();
-    logInfo("Stagehand environment initialized", { env });
+    logInfo("Stagehand environment initialized", { env, experimental: true });
   }
 
   get page() {
