@@ -49,10 +49,14 @@ export const actorAgent = new Agent({
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
     "CRITICAL METHOD SELECTION RULES:",
     "- For <input> elements: use method='fill' with the value as first argument",
+    "- For <input type='datetime-local'>: use method='fill' with ISO format 'YYYY-MM-DDThh:mm' (e.g., '2024-12-25T14:30')",
+    "  - Must use future date/time if the goal requires 'future' or 'next' availability",
+    "  - Generate a date approximately 7-30 days in the future with a reasonable time (e.g., 14:30 or 10:00)",
     "- For <select> elements: use method='selectOption' with the option value(s) as first argument",
     "  - Single select: pass single value string matching an option's value attribute",
     "  - Multi-select: pass ARRAY of individual option values, e.g., ['cooking', 'painting'] NOT 'cooking, painting'",
     "- For <textarea> elements: use method='fill' with the text as first argument",
+    "- For spinbutton controls (if datetime-local not available): use method='fill' with appropriate values",
     "- For checkboxes/radios: use method='click' (no arguments needed)",
     "- For buttons/links: use method='click' (no arguments needed)",
     "Do not leave fill/selectOption arguments empty—copy the value from the goal or prior observations.",
@@ -123,10 +127,34 @@ const CandidatesSchema = z.object({
 /**
  * Helper to identify form control elements.
  * Includes all HTML form controls that can hold values: input, select, textarea.
+ * Also includes spinbutton controls (often used for date/time widgets).
  */
 export function isFormControl(affordance: any): boolean {
   const tagName = affordance?.fieldInfo?.tagName;
-  return ["input", "select", "textarea"].includes(tagName);
+  const type = affordance?.fieldInfo?.type;
+  const description = affordance?.description?.toLowerCase() || "";
+
+  // Standard form controls with proper fieldInfo
+  if (["input", "select", "textarea"].includes(tagName)) {
+    return true;
+  }
+
+  // Explicitly check for datetime-local inputs
+  if (tagName === "input" && type === "datetime-local") {
+    return true;
+  }
+
+  // DateTime/spinbutton controls (may lack fieldInfo but are form inputs)
+  if (description.includes("spinbutton") && description.includes("selecting")) {
+    return true;
+  }
+
+  // Check description for datetime-local inputs
+  if (description.includes("datetime-local")) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -170,7 +198,44 @@ function summarizeFormState(o: Observation) {
 
   formControls.forEach(a => {
     const fi = a.fieldInfo ?? {};
-    const id = fi.name || fi.id || fi.label || a.description || "";
+    const description = a.description || "";
+
+    // Handle datetime-local inputs explicitly
+    if (fi.type === "datetime-local" || description.toLowerCase().includes("datetime-local")) {
+      const id = fi.name || fi.id || fi.label || description;
+      const req = fi.required ? "required" : "optional";
+      const val = (a.currentValue ?? fi.value ?? "") as string;
+      const hasValue = val && String(val).length > 0;
+      const entry = `• ${id} [datetime-local, ${req}]`;
+
+      if (hasValue) {
+        filledInputs.push(`${entry} = "${val}"`);
+      } else {
+        emptyInputs.push(entry);
+      }
+      return; // Skip normal processing
+    }
+
+    // Handle datetime spinbuttons (which lack fieldInfo)
+    if (description.toLowerCase().includes("spinbutton") && description.toLowerCase().includes("selecting")) {
+      const isDateTimeField = description.toLowerCase().includes("availability") ||
+                             description.toLowerCase().includes("date") ||
+                             description.toLowerCase().includes("time");
+      if (isDateTimeField) {
+        // Check if it's for required availability field
+        const req = description.toLowerCase().includes("availability") ? "required" : "optional";
+        const entry = `• Next availability [datetime, ${req}]`;
+        // DateTime fields are complex - check if any text is visible (not just placeholder)
+        const hasValue = !description.includes("dd") && !description.includes("mm") && !description.includes("yyyy");
+        if (!hasValue) {
+          emptyInputs.push(entry);
+        }
+      }
+      return; // Skip normal processing for these special controls
+    }
+
+    // Normal form control processing
+    const id = fi.name || fi.id || fi.label || description;
     const tagName = fi.tagName || "input";
     const type = fi.type || (tagName === "select" ? "select" : tagName === "textarea" ? "textarea" : "text");
     const req = fi.required ? "required" : "optional";
@@ -189,6 +254,21 @@ function summarizeFormState(o: Observation) {
 
   const requiredEmpty = formControls.filter(a => {
     const fi = a.fieldInfo ?? {};
+    const description = (a.description || "").toLowerCase();
+
+    // Check datetime-local inputs
+    if (fi.type === "datetime-local" || description.includes("datetime-local")) {
+      const val = (a.currentValue ?? fi.value ?? "") as string;
+      return !!fi.required && String(val).length === 0;
+    }
+
+    // Check datetime spinbuttons for availability (goal requires this)
+    if (description.includes("spinbutton") && description.includes("availability")) {
+      // Check if still showing placeholders (not filled)
+      return description.includes("dd") || description.includes("mm") || description.includes("yyyy");
+    }
+
+    // Normal form controls
     const val = (a.currentValue ?? fi.value ?? "") as string;
     return !!fi.required && String(val).length === 0;
   }).length;

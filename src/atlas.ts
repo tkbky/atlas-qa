@@ -48,6 +48,21 @@ const requiredEmptyCount = (o: Observation) =>
     .filter(isFormControl)
     .filter(a => {
       const fi = (a as any).fieldInfo ?? {};
+      const description = ((a as any).description || "").toLowerCase();
+
+      // Check datetime-local inputs
+      if (fi.type === "datetime-local" || description.includes("datetime-local")) {
+        const val = (a as any).currentValue ?? fi.value ?? "";
+        return !!fi.required && String(val).length === 0;
+      }
+
+      // Check datetime spinbuttons for availability (goal requires this)
+      if (description.includes("spinbutton") && description.includes("availability")) {
+        // Check if still showing placeholders (not filled)
+        return description.includes("dd") || description.includes("mm") || description.includes("yyyy");
+      }
+
+      // Normal form controls
       const val = (a as any).currentValue ?? fi.value ?? "";
       return !!fi.required && String(val).length === 0;
     }).length;
