@@ -113,25 +113,44 @@ const CandidatesSchema = z.object({
 
 /**
  * Generic, keyword-free summary of current input state.
- * Counts required inputs with empty values and lists each input with value length.
+ * Separates filled and empty inputs to make state explicit.
  */
 function summarizeFormState(o: Observation) {
   const inputs = (o.affordances as any[]).filter(a => a?.fieldInfo?.tagName === "input");
-  const rows = inputs.map(a => {
+
+  // Separate filled and empty inputs for clarity
+  const filledInputs: string[] = [];
+  const emptyInputs: string[] = [];
+
+  inputs.forEach(a => {
     const fi = a.fieldInfo ?? {};
     const id = fi.name || fi.id || fi.label || a.description || "";
     const type = fi.type || "text";
     const req = fi.required ? "required" : "optional";
     const val = (a.currentValue ?? fi.value ?? "") as string;
-    const len = val ? String(val).length : 0;
-    return `• ${id} [type=${type}, ${req}, valueLen=${len}]`;
+    const hasValue = val && String(val).length > 0;
+
+    const entry = `• ${id} [${type}, ${req}]`;
+    if (hasValue) {
+      // Show actual value for filled inputs
+      const displayValue = type === "password" ? "***" : val.substring(0, 50);
+      filledInputs.push(`${entry} = "${displayValue}"`);
+    } else {
+      emptyInputs.push(entry);
+    }
   });
+
   const requiredEmpty = inputs.filter(a => {
     const fi = a.fieldInfo ?? {};
     const val = (a.currentValue ?? fi.value ?? "") as string;
     return !!fi.required && String(val).length === 0;
   }).length;
-  return { table: rows.join("\n"), requiredEmpty };
+
+  return {
+    filledInputs: filledInputs.join("\n"),
+    emptyInputs: emptyInputs.join("\n"),
+    requiredEmpty
+  };
 }
 
 export async function propose(
@@ -146,13 +165,8 @@ export async function propose(
   const fs = summarizeFormState(o);
 
   logInfo("Actor agent invoked", { goal, subgoals: P.subgoals, url: o.url, title: o.title, beam: N });
-  const res = await actorAgent.generate(
-    [
-      { role: "system", content: "Return JSON only." },
-      {
-        role: "user",
-        content:
-`Goal: ${goal}
+
+  const promptContent = `Goal: ${goal}
 Plan:
 ${P.subgoals.map(s => `• ${s.text} [${s.successPredicate}]`).join("\n")}
 Page: ${o.url} | ${o.title}
@@ -160,12 +174,21 @@ Page: ${o.url} | ${o.title}
 Visible affordances:
 ${affordanceHints}
 
-Observed input state (generic):
-${fs.table}
-Required input empty: ${fs.requiredEmpty}
+Observed input state:
+${fs.filledInputs.length > 0 ? `ALREADY FILLED (do NOT re-fill these):\n${fs.filledInputs}` : 'No inputs filled yet'}
+${fs.emptyInputs.length > 0 ? `\nSTILL EMPTY (can be filled):\n${fs.emptyInputs}` : ''}
+Required inputs still empty: ${fs.requiredEmpty}
 
-Rule: When requiredEmpty>0, prefer proposing 'fill' actions for those inputs before proposing clicks. Do not assume values are filled unless valueLen>0.`,
-      },
+CRITICAL RULE: Only propose 'fill' actions for inputs listed as "STILL EMPTY". Do NOT re-fill inputs shown as "ALREADY FILLED" - they already contain the correct values.
+When all required inputs are filled (Required inputs still empty: 0), propose clicking submit/next buttons instead.`;
+
+  // Log the full prompt for debugging LLM reasoning
+  logDebug("Actor agent prompt", { prompt: promptContent });
+
+  const res = await actorAgent.generate(
+    [
+      { role: "system", content: "Return JSON only." },
+      { role: "user", content: promptContent },
     ],
     { structuredOutput: { schema: CandidatesSchema } }
   );
@@ -204,19 +227,14 @@ export async function critique(
     .map((h, i) => `#${i} => ${h ? `${h.title} @ ${h.url}` : "UNKNOWN"}`)
     .join("\n");
 
-  const res = await criticAgent.generate(
-    [
-      { role: "system", content: "Return JSON only." },
-      {
-        role: "user",
-        content:
-`Goal: ${goal}
+  const promptContent = `Goal: ${goal}
 Plan: ${P.subgoals.map(s => s.text).join(" / ")}
 Observation: ${o.title} @ ${o.url}
 
-Observed input state (generic):
-${fs.table}
-Required input empty: ${fs.requiredEmpty}
+Observed input state:
+${fs.filledInputs.length > 0 ? `ALREADY FILLED:\n${fs.filledInputs}` : 'No inputs filled yet'}
+${fs.emptyInputs.length > 0 ? `\nSTILL EMPTY:\n${fs.emptyInputs}` : ''}
+Required inputs still empty: ${fs.requiredEmpty}
 
 Candidates:
 ${candBlock}
@@ -224,8 +242,17 @@ ${candBlock}
 Lookahead (cognitive map):
 ${laBlock}
 
-Score each in [-1,1] and pick best index as 'chosenIndex'.`,
-      },
+CRITICAL: Down-rank candidates that try to re-fill inputs shown as "ALREADY FILLED".
+When Required inputs still empty = 0, prefer candidates that advance the flow (e.g., clicking Next/Submit buttons).
+Score each in [-1,1] and pick best index as 'chosenIndex'.`;
+
+  // Log the full prompt for debugging LLM reasoning
+  logDebug("Critic agent prompt", { prompt: promptContent });
+
+  const res = await criticAgent.generate(
+    [
+      { role: "system", content: "Return JSON only." },
+      { role: "user", content: promptContent },
     ],
     { structuredOutput: { schema: CritiqueSchema } }
   );
