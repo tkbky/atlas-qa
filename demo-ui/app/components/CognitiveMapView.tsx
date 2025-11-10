@@ -6,9 +6,10 @@ import type { Transition } from "../types";
 type CognitiveMapViewProps = {
   edges: Transition[];
   currentStep: number;
+  mini?: boolean;
 };
 
-export function CognitiveMapView({ edges, currentStep }: CognitiveMapViewProps) {
+export function CognitiveMapView({ edges, currentStep, mini = false }: CognitiveMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<any>(null);
 
@@ -27,46 +28,49 @@ export function CognitiveMapView({ edges, currentStep }: CognitiveMapViewProps) 
             {
               selector: "node",
               style: {
-                "background-color": "#4a90e2",
-                label: "data(label)",
-                color: "#000",
+                "background-color": mini ? "#00ff00" : "#4a90e2",
+                label: mini ? "" : "data(label)",
+                color: mini ? "#000" : "#00ff00",
                 "text-valign": "center",
                 "text-halign": "center",
-                "font-size": "10px",
-                width: 60,
-                height: 60,
+                "font-size": mini ? "6px" : "10px",
+                width: mini ? 20 : 60,
+                height: mini ? 20 : 60,
                 "text-wrap": "wrap",
-                "text-max-width": "80px",
+                "text-max-width": mini ? "40px" : "80px",
+                "font-family": "Consolas, Monaco, monospace",
               },
             },
             {
               selector: "edge",
               style: {
-                width: 2,
-                "line-color": "#999",
-                "target-arrow-color": "#999",
+                width: mini ? 1 : 2,
+                "line-color": mini ? "#555" : "#999",
+                "target-arrow-color": mini ? "#555" : "#999",
                 "target-arrow-shape": "triangle",
                 "curve-style": "bezier",
-                label: "data(label)",
-                "font-size": "8px",
+                label: mini ? "" : "data(label)",
+                "font-size": mini ? "6px" : "8px",
                 "text-rotation": "autorotate",
                 "text-margin-y": -10,
+                color: mini ? "#888" : "#999",
+                "font-family": "Consolas, Monaco, monospace",
               },
             },
             {
               selector: ".current",
               style: {
-                "background-color": "#e74c3c",
-                "line-color": "#e74c3c",
-                "target-arrow-color": "#e74c3c",
+                "background-color": mini ? "#ffb000" : "#e74c3c",
+                "line-color": mini ? "#ffb000" : "#e74c3c",
+                "target-arrow-color": mini ? "#ffb000" : "#e74c3c",
               },
             },
           ],
           layout: {
             name: "breadthfirst",
             directed: true,
-            padding: 20,
-            spacingFactor: 1.5,
+            padding: mini ? 10 : 20,
+            spacingFactor: mini ? 1.2 : 1.5,
           },
         });
       }
@@ -126,28 +130,45 @@ export function CognitiveMapView({ edges, currentStep }: CognitiveMapViewProps) 
 
   if (edges.length === 0) {
     return (
-      <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
-        No cognitive map data yet. Start a run to see the state transition graph.
+      <div
+        style={{
+          padding: mini ? "10px" : "20px",
+          textAlign: "center",
+          color: "#555",
+          fontSize: mini ? "10px" : "12px",
+          fontFamily: "Consolas, Monaco, monospace",
+          fontStyle: "italic",
+        }}
+      >
+        {mini ? "no map data" : "no cognitive map data yet - start a run to see the state transition graph"}
       </div>
     );
   }
 
   return (
     <div>
-      <h2>Cognitive Map (State Transitions)</h2>
       <div
         ref={containerRef}
         style={{
           width: "100%",
-          height: "600px",
-          border: "1px solid #ddd",
-          borderRadius: "8px",
-          backgroundColor: "#fafafa",
+          height: mini ? "200px" : "600px",
+          border: "1px solid #333",
+          backgroundColor: "#000",
         }}
       />
-      <div style={{ marginTop: "15px", fontSize: "14px", color: "#666" }}>
-        <strong>Legend:</strong> Nodes = Observations (pages), Edges = Actions. The graph shows how ATLAS navigates through the web environment.
-      </div>
+      {!mini && (
+        <div
+          style={{
+            marginTop: "12px",
+            fontSize: "11px",
+            color: "#888",
+            fontFamily: "Consolas, Monaco, monospace",
+          }}
+        >
+          <span style={{ fontStyle: "italic" }}>legend:</span> nodes = observations (pages), edges
+          = actions
+        </div>
+      )}
     </div>
   );
 }

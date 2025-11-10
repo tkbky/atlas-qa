@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
+import { Mastra } from "@mastra/core";
+import { ConsoleLogger } from "@mastra/core/logger";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore, LibSQLVector } from "@mastra/libsql";
@@ -7,16 +9,29 @@ import type { Observation, Plan, Candidate, Critique, AtlasEventCallback, InputS
 import { logDebug, logInfo } from "./logger.js";
 
 /**
- * Mastra Agents:
+ * Mastra Agents with Observability:
  * - `Agent.generate(messages, { structuredOutput: { schema } })` returns `response.object` (typed by Zod)
  * - Memory: working memory + history; configure storage via LibSQLStore
- * Docs: structured output, generate(), working memory, LibSQL storage.
- * :contentReference[oaicite:6]{index=6}
+ * - Observability: AI tracing + OTEL tracing enabled via Mastra instance
+ * Docs: structured output, generate(), working memory, LibSQL storage, observability.
+ * Reference: https://mastra.ai/docs/observability/overview
  */
 
 const storage = new LibSQLStore({
   // simple file DB for local dev; use DATABASE_URL for remote
   url: "file:./mastra.db",
+});
+
+// Initialize Mastra with observability enabled
+export const mastra = new Mastra({
+  logger: new ConsoleLogger({ name: "atlas-qa" }),
+  storage,
+  observability: {
+    default: { enabled: true }, // Enables AI Tracing
+  },
+  telemetry: {
+    enabled: true, // Enables OTEL Tracing
+  },
 });
 
 export const memory = new Memory({

@@ -5,7 +5,7 @@ import type { RunState, StepData } from "./types";
 import type { AtlasEvent } from "./types";
 import { Controls } from "./components/Controls";
 import { Timeline } from "./components/Timeline";
-import { CognitiveMapView } from "./components/CognitiveMapView";
+import { Sidebar } from "./components/Sidebar";
 
 export default function Home() {
   const [runState, setRunState] = useState<RunState>({
@@ -15,8 +15,9 @@ export default function Home() {
     steps: [],
     currentStep: -1,
     cognitiveMap: [],
+    semanticRules: "",
   });
-  const [activeTab, setActiveTab] = useState<"timeline" | "map">("timeline");
+  const [showControls, setShowControls] = useState<boolean>(true);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const handleStart = (goal: string, startUrl: string, env: string, beamSize: number, maxSteps: number) => {
@@ -33,6 +34,7 @@ export default function Home() {
       steps: [],
       currentStep: -1,
       cognitiveMap: [],
+      semanticRules: "",
     });
 
     // Build SSE URL
@@ -68,8 +70,31 @@ export default function Home() {
       console.log("Plan:", event);
       setRunState((prev) => ({
         ...prev,
+        plan: event.plan,
         steps: prev.steps.map((s) => ({ ...s, plan: event.plan })),
       }));
+    });
+
+    eventSource.addEventListener("semantic_rules", (e) => {
+      const event = JSON.parse(e.data) as AtlasEvent & { type: "semantic_rules" };
+      console.log("Semantic rules:", event);
+      const stepData = getOrCreateStepData(event.step);
+      stepData.semanticRules = event.rules;
+
+      setRunState((prev) => {
+        const newSteps = [...prev.steps];
+        const idx = newSteps.findIndex((s) => s.step === event.step);
+        if (idx >= 0) {
+          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
+        } else {
+          newSteps.push(stepData as StepData);
+        }
+        return {
+          ...prev,
+          steps: newSteps,
+          semanticRules: event.rules || prev.semanticRules // Update global semantic rules
+        };
+      });
     });
 
     eventSource.addEventListener("propose", (e) => {
@@ -85,7 +110,8 @@ export default function Home() {
         if (idx >= 0) {
           newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
         } else {
-          newSteps.push(stepData as StepData);
+          // New step - include current plan
+          newSteps.push({ ...stepData, plan: prev.plan } as StepData);
         }
         return { ...prev, steps: newSteps, currentStep: event.step };
       });
@@ -157,6 +183,7 @@ export default function Home() {
       console.log("Replan:", event);
       setRunState((prev) => ({
         ...prev,
+        plan: event.plan,
         steps: prev.steps.map((s) => ({ ...s, plan: event.plan })),
       }));
     });
@@ -209,54 +236,99 @@ export default function Home() {
   };
 
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", padding: "20px", maxWidth: "1400px", margin: "0 auto" }}>
-      <h1 style={{ marginBottom: "20px" }}>ATLAS Demo UI</h1>
-
-      <Controls
-        onStart={handleStart}
-        onStop={handleStop}
-        isRunning={runState.status === "running"}
-      />
-
-      <div style={{ marginTop: "30px", borderTop: "2px solid #ccc", paddingTop: "20px" }}>
-        <div style={{ marginBottom: "20px" }}>
-          <button
-            onClick={() => setActiveTab("timeline")}
-            style={{
-              padding: "10px 20px",
-              marginRight: "10px",
-              backgroundColor: activeTab === "timeline" ? "#007bff" : "#e0e0e0",
-              color: activeTab === "timeline" ? "white" : "black",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Timeline
-          </button>
-          <button
-            onClick={() => setActiveTab("map")}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: activeTab === "map" ? "#007bff" : "#e0e0e0",
-              color: activeTab === "map" ? "white" : "black",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Cognitive Map
-          </button>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        backgroundColor: "#000",
+        color: "#00ff00",
+        fontFamily: "Consolas, Monaco, monospace",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header with collapsible controls */}
+      <div
+        style={{
+          borderBottom: "1px solid #333",
+          backgroundColor: "#0a0a0a",
+        }}
+      >
+        <div
+          onClick={() => setShowControls(!showControls)}
+          style={{
+            padding: "12px 20px",
+            cursor: "pointer",
+            userSelect: "none",
+            fontSize: "14px",
+            fontWeight: "bold",
+          }}
+        >
+          <span style={{ marginRight: "8px", color: "#888" }}>
+            {showControls ? "▼" : "▶"}
+          </span>
+          ATLAS Control Panel
         </div>
-
-        {runState.status === "error" && (
-          <div style={{ padding: "15px", backgroundColor: "#fee", border: "1px solid #c00", borderRadius: "4px", marginBottom: "20px" }}>
-            <strong>Error:</strong> {runState.errorMessage}
+        {showControls && (
+          <div style={{ padding: "0 20px 20px 20px" }}>
+            <Controls
+              onStart={handleStart}
+              onStop={handleStop}
+              isRunning={runState.status === "running"}
+            />
           </div>
         )}
+      </div>
 
-        {activeTab === "timeline" && <Timeline steps={runState.steps} currentStep={runState.currentStep} />}
-        {activeTab === "map" && <CognitiveMapView edges={runState.cognitiveMap} currentStep={runState.currentStep} />}
+      {/* Error display */}
+      {runState.status === "error" && (
+        <div
+          style={{
+            padding: "12px 20px",
+            backgroundColor: "#2a0000",
+            border: "1px solid #ff4444",
+            borderLeft: "4px solid #ff4444",
+            color: "#ff4444",
+            fontFamily: "Consolas, Monaco, monospace",
+            fontSize: "12px",
+          }}
+        >
+          <span style={{ fontWeight: "bold" }}>ERROR:</span> {runState.errorMessage}
+        </div>
+      )}
+
+      {/* Main content area with two columns */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "30% 70%",
+          gap: "1px",
+          backgroundColor: "#333",
+          flex: 1,
+          overflow: "hidden",
+        }}
+      >
+        {/* Left Sidebar */}
+        <div
+          style={{
+            backgroundColor: "#000",
+            padding: "15px",
+            overflowY: "auto",
+          }}
+        >
+          <Sidebar runState={runState} />
+        </div>
+
+        {/* Right Main Area - Timeline */}
+        <div
+          style={{
+            backgroundColor: "#000",
+            padding: "15px",
+            overflowY: "auto",
+          }}
+        >
+          <Timeline steps={runState.steps} currentStep={runState.currentStep} />
+        </div>
       </div>
     </div>
   );

@@ -31,14 +31,17 @@ export type StepData = {
   observationBefore?: Observation;
   observationAfter?: Observation;
   edge?: Transition;
+  semanticRules?: string;
 };
 
 export type RunState = {
   status: "idle" | "running" | "completed" | "error";
   goal: string;
   startUrl: string;
+  plan?: Plan;
   steps: StepData[];
   currentStep: number;
   cognitiveMap: Transition[];
+  semanticRules: string;
   errorMessage?: string;
 };

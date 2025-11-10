@@ -1,7 +1,8 @@
 import type { Observation, Plan, Candidate, Critique, Transition, Affordance, AtlasEventCallback } from "./types.js";
 import { CognitiveMap } from "./cognitiveMap.js";
 import { WebEnv } from "./browser.js";
-import { plan, propose, critique, isFormControl } from "./agents.js";
+import { plan, propose, critique, isFormControl, memory } from "./agents.js";
+import { AtlasMemory } from "./memory/atlasMemory.js";
 import {
   initRunLogger,
   logDebug,
@@ -85,6 +86,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
 
   const web = new WebEnv();
   const M = new CognitiveMap();
+  const atlasMem = new AtlasMemory(memory);
   const steps: AtlasStepArtifact[] = [];
   let runArtifacts: AtlasRunArtifacts | null = null;
   const startTime = Date.now();
@@ -118,6 +120,13 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         endedReason = "time_budget_exceeded";
         logWarn("Time budget exceeded, terminating loop", { step: t, timeBudgetMs });
         break;
+      }
+
+      // Retrieve semantic memory (learned rules) for the current domain
+      const semanticRules = await atlasMem.summarizeRulesForUrl(o.url);
+      if (semanticRules && onEvent) {
+        await onEvent({ type: "semantic_rules", step: t, url: o.url, rules: semanticRules });
+        logDebug("Semantic rules retrieved", { step: t, url: o.url, rulesLength: semanticRules.length });
       }
 
       // Nudge the Actor with context derived from last action to prevent loops (e.g., repeated picker clicks)

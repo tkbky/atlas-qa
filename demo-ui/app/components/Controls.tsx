@@ -10,7 +10,7 @@ type ControlsProps = {
 
 export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
   const [goal, setGoal] = useState("Add 2 books into the cart. Check the cart and verify the books are added.");
-  const [startUrl, setStartUrl] = useState("https:amazon.sg");
+  const [startUrl, setStartUrl] = useState("https://amazon.sg");
   const [env, setEnv] = useState("LOCAL");
   const [beamSize, setBeamSize] = useState(3);
   const [maxSteps, setMaxSteps] = useState(15);
@@ -23,12 +23,19 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
   };
 
   return (
-    <div style={{ padding: "20px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-      <h2 style={{ marginTop: 0 }}>Run Configuration</h2>
+    <div style={{ padding: "0" }}>
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            Goal:
+        <div style={{ marginBottom: "12px" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "4px",
+              fontSize: "11px",
+              color: "#888",
+              textTransform: "uppercase",
+            }}
+          >
+            Goal
           </label>
           <input
             type="text"
@@ -37,18 +44,29 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
             disabled={isRunning}
             style={{
               width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
+              padding: "6px 8px",
+              fontSize: "12px",
+              border: "1px solid #333",
+              backgroundColor: "#0a0a0a",
+              color: "#00ff00",
+              fontFamily: "Consolas, Monaco, monospace",
+              outline: "none",
             }}
             placeholder="e.g., Fill the signup form with email test@example.com"
           />
         </div>
 
-        <div style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            Start URL:
+        <div style={{ marginBottom: "12px" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "4px",
+              fontSize: "11px",
+              color: "#888",
+              textTransform: "uppercase",
+            }}
+          >
+            Start URL
           </label>
           <input
             type="text"
@@ -57,19 +75,30 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
             disabled={isRunning}
             style={{
               width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
+              padding: "6px 8px",
+              fontSize: "12px",
+              border: "1px solid #333",
+              backgroundColor: "#0a0a0a",
+              color: "#00ff00",
+              fontFamily: "Consolas, Monaco, monospace",
+              outline: "none",
             }}
             placeholder="http://localhost:8000"
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px", marginBottom: "15px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Environment:
+            <label
+              style={{
+                display: "block",
+                marginBottom: "4px",
+                fontSize: "11px",
+                color: "#888",
+                textTransform: "uppercase",
+              }}
+            >
+              Environment
             </label>
             <select
               value={env}
@@ -77,10 +106,13 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
               disabled={isRunning}
               style={{
                 width: "100%",
-                padding: "8px",
-                fontSize: "14px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
+                padding: "6px 8px",
+                fontSize: "12px",
+                border: "1px solid #333",
+                backgroundColor: "#0a0a0a",
+                color: "#00ff00",
+                fontFamily: "Consolas, Monaco, monospace",
+                outline: "none",
               }}
             >
               <option value="LOCAL">Local</option>
@@ -89,8 +121,16 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Beam Size (N):
+            <label
+              style={{
+                display: "block",
+                marginBottom: "4px",
+                fontSize: "11px",
+                color: "#888",
+                textTransform: "uppercase",
+              }}
+            >
+              Beam Size (N)
             </label>
             <input
               type="number"
@@ -101,17 +141,28 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
               max={5}
               style={{
                 width: "100%",
-                padding: "8px",
-                fontSize: "14px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
+                padding: "6px 8px",
+                fontSize: "12px",
+                border: "1px solid #333",
+                backgroundColor: "#0a0a0a",
+                color: "#00ff00",
+                fontFamily: "Consolas, Monaco, monospace",
+                outline: "none",
               }}
             />
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Max Steps:
+            <label
+              style={{
+                display: "block",
+                marginBottom: "4px",
+                fontSize: "11px",
+                color: "#888",
+                textTransform: "uppercase",
+              }}
+            >
+              Max Steps
             </label>
             <input
               type="number"
@@ -122,31 +173,35 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
               max={50}
               style={{
                 width: "100%",
-                padding: "8px",
-                fontSize: "14px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
+                padding: "6px 8px",
+                fontSize: "12px",
+                border: "1px solid #333",
+                backgroundColor: "#0a0a0a",
+                color: "#00ff00",
+                fontFamily: "Consolas, Monaco, monospace",
+                outline: "none",
               }}
             />
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div style={{ display: "flex", gap: "8px" }}>
           <button
             type="submit"
             disabled={isRunning || !goal || !startUrl}
             style={{
-              padding: "10px 30px",
-              fontSize: "16px",
+              padding: "8px 24px",
+              fontSize: "12px",
               fontWeight: "bold",
-              backgroundColor: isRunning ? "#ccc" : "#28a745",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: isRunning ? "not-allowed" : "pointer",
+              backgroundColor: isRunning || !goal || !startUrl ? "#1a1a1a" : "#00ff00",
+              color: isRunning || !goal || !startUrl ? "#555" : "#000",
+              border: "1px solid #333",
+              fontFamily: "Consolas, Monaco, monospace",
+              cursor: isRunning || !goal || !startUrl ? "not-allowed" : "pointer",
+              textTransform: "uppercase",
             }}
           >
-            {isRunning ? "Running..." : "Start Run"}
+            {isRunning ? "[Running...]" : "[Start Run]"}
           </button>
 
           {isRunning && (
@@ -154,17 +209,18 @@ export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
               type="button"
               onClick={onStop}
               style={{
-                padding: "10px 30px",
-                fontSize: "16px",
+                padding: "8px 24px",
+                fontSize: "12px",
                 fontWeight: "bold",
-                backgroundColor: "#dc3545",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
+                backgroundColor: "#ff4444",
+                color: "#000",
+                border: "1px solid #333",
+                fontFamily: "Consolas, Monaco, monospace",
                 cursor: "pointer",
+                textTransform: "uppercase",
               }}
             >
-              Stop
+              [Stop]
             </button>
           )}
         </div>
