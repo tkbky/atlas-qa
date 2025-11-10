@@ -1,4 +1,4 @@
-import type { Observation, Plan, Candidate, Critique, Transition, Affordance } from "./types.js";
+import type { Observation, Plan, Candidate, Critique, Transition, Affordance, AtlasEventCallback } from "./types.js";
 import { CognitiveMap } from "./cognitiveMap.js";
 import { WebEnv } from "./browser.js";
 import { plan, propose, critique, isFormControl } from "./agents.js";
@@ -19,6 +19,7 @@ export type AtlasOptions = {
   logDir?: string;
   runLabel?: string;
   timeBudgetMs?: number;
+  onEvent?: AtlasEventCallback;
 };
 
 export type AtlasStepArtifact = {
@@ -76,7 +77,7 @@ const clone = <T>(value: T): T => {
 };
 
 export async function runAtlas(goal: string, startUrl: string, opts: AtlasOptions = {}): Promise<AtlasRunArtifacts> {
-  const { env = "LOCAL", maxSteps = 15, beamSize = 3, logDir, runLabel, timeBudgetMs } = opts;
+  const { env = "LOCAL", maxSteps = 15, beamSize = 3, logDir, runLabel, timeBudgetMs, onEvent } = opts;
   const vetoThreshold = 0.0; // optional: ignore obviously bad actions from Critic
 
   const logger = initRunLogger({ logDir, runLabel });
@@ -90,6 +91,11 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
   let endedReason = "max_steps_reached";
 
   try {
+    // Emit init event
+    if (onEvent) {
+      await onEvent({ type: "init", goal, startUrl, opts });
+    }
+
     await web.init(env);
     logInfo("Web environment initialized", { env });
 
@@ -99,7 +105,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
     let o: Observation = await web.currentObservation();
     logDebug("Initial observation captured", summarizeObservation(o));
 
-    let P = await plan(goal, o);
+    let P = await plan(goal, o, onEvent);
     logInfo("Initial plan generated", { plan: P });
 
     // Track last executed action to influence subsequent proposals (e.g., avoid repeated picker clicks)
@@ -121,11 +127,14 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       }
 
       // Ask for at least 2 so the Critic has a choice
-      let C = await propose(augmentedGoal, P, o, Math.max(beamSize, 2));
+      let C = await propose(augmentedGoal, P, o, Math.max(beamSize, 2), t, onEvent);
       logInfo("Candidates proposed", { step: t, candidates: C });
       if (C.length === 0) {
         logWarn("No candidates proposed, terminating loop", { step: t });
         endedReason = "no_candidates";
+        if (onEvent) {
+          await onEvent({ type: "done", finalObservation: clone(o), endedReason, cognitiveMap: M.snapshot() });
+        }
         break;
       }
 
@@ -133,7 +142,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const lookaheads = C.map(c => M.lookup(o, c.action) ?? M.placeholder(o, c.action));
       logDebug("Lookahead states prepared", { step: t, lookaheads });
 
-      const critiqueRes = await critique(goal, P, o, C, lookaheads);
+      const critiqueRes = await critique(goal, P, o, C, lookaheads, t, onEvent);
       logInfo("Critique results received", { step: t, critique: critiqueRes });
       const choiceIdx = Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex));
       let choice = C[choiceIdx];
@@ -173,9 +182,11 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
             P,
             o,
             Math.max(beamSize, 3),
+            t,
+            onEvent
           );
           if (C.length === 0) {
-            P = await plan(goal, o);
+            P = await plan(goal, o, onEvent);
             continue;
           }
           choice = C[0];
@@ -185,7 +196,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // Prevent repeated picker clicks if the last action already clicked the picker
       if (repeatedPickerClick) {
         const noRepeatGoal = `${goal} (picker already clicked; now set Year/Month/Day/Hours/Minutes/AM-PM via segmented controls—do NOT click the picker again)`;
-        const newCandidates = await propose(noRepeatGoal, P, o, Math.max(beamSize, 3));
+        const newCandidates = await propose(noRepeatGoal, P, o, Math.max(beamSize, 3), t, onEvent);
         const alt = newCandidates.find(c =>
           !(c.action.description?.toLowerCase().includes("show local date and time picker") ?? false)
         );
@@ -198,21 +209,36 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // ---------------------------- optional critic veto ----------------------------
       const best = critiqueRes.ranked?.[0];
       if (best && best.value < vetoThreshold) {
-        C = await propose(`${goal} (avoid low-value actions; prefer increasing data completeness first)`, P, o, Math.max(beamSize, 3));
-        if (C.length === 0) { P = await plan(goal, o); continue; }
+        C = await propose(`${goal} (avoid low-value actions; prefer increasing data completeness first)`, P, o, Math.max(beamSize, 3), t, onEvent);
+        if (C.length === 0) { P = await plan(goal, o, onEvent); continue; }
         choice = C[0];
       }
       // -------------------------------------------------------------------------------
 
       logInfo("Selected action", { step: t, chosenIndex: critiqueRes.chosenIndex, action: choice });
 
+      // Emit selected_action event
+      if (onEvent) {
+        await onEvent({ type: "selected_action", step: t, action: clone(choice.action) });
+      }
+
       // EXECUTE
       await web.act(choice.action);
       logInfo("Action executed", { step: t, action: choice.action });
 
+      // Emit action_executed event
+      if (onEvent) {
+        await onEvent({ type: "action_executed", step: t, action: clone(choice.action) });
+      }
+
       // OBSERVE NEXT
       const oNext = await web.currentObservation();
       logDebug("Observation after action", { step: t, observation: summarizeObservation(oNext) });
+
+      // Emit observation_after event
+      if (onEvent) {
+        await onEvent({ type: "observation_after", step: t, before: clone(o), after: clone(oNext) });
+      }
 
       // Remember last action for next-step steering
       lastAction = choice.action;
@@ -220,6 +246,17 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
       M.record(o, choice.action, oNext, delta);
       logDebug("Cognitive map updated", { step: t, delta });
+
+      // Emit map_update event
+      if (onEvent) {
+        const edge: Transition = {
+          fromKey: o.url,
+          actionKey: choice.action.description,
+          to: clone(oNext),
+          delta,
+        };
+        await onEvent({ type: "map_update", step: t, edge });
+      }
 
       steps.push({
         step: t,
@@ -238,8 +275,13 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const noProgress = sameUrlTitle && (requiredEmptyCount(oNext) >= requiredEmptyCount(o));
       if (noProgress && t % 4 === 3) {
         logInfo("Replanning triggered", { step: t, reason: "no-progress" });
-        P = await plan(goal, oNext);
+        P = await plan(goal, oNext, onEvent);
         logInfo("Plan updated", { step: t, plan: P });
+
+        // Emit replan event
+        if (onEvent) {
+          await onEvent({ type: "replan", step: t, reason: "no-progress", plan: P });
+        }
       }
 
       o = oNext;
@@ -259,8 +301,27 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       cognitiveMap: M.snapshot(),
       endedReason,
     };
+
+    // Emit done event
+    if (onEvent) {
+      await onEvent({
+        type: "done",
+        finalObservation: runArtifacts.finalObservation,
+        endedReason: runArtifacts.endedReason,
+        cognitiveMap: runArtifacts.cognitiveMap
+      });
+    }
   } catch (error) {
     logError("Atlas run encountered an error", { error });
+
+    // Emit error event
+    if (onEvent) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      try {
+        await onEvent({ type: "error", message: errorMessage });
+      } catch {}
+    }
+
     throw error;
   } finally {
     try {

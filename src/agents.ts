@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore, LibSQLVector } from "@mastra/libsql";
-import type { Observation, Plan, Candidate, Critique } from "./types.js";
+import type { Observation, Plan, Candidate, Critique, AtlasEventCallback, InputState } from "./types.js";
 import { logDebug, logInfo } from "./logger.js";
 
 /**
@@ -99,7 +99,7 @@ const PlanSchema = z.object({
   ),
 });
 
-export async function plan(goal: string, o0: Observation): Promise<Plan> {
+export async function plan(goal: string, o0: Observation, onEvent?: AtlasEventCallback): Promise<Plan> {
   logInfo("Planner agent invoked", { goal, url: o0.url, title: o0.title });
   const res = await plannerAgent.generate(
     [
@@ -110,6 +110,12 @@ export async function plan(goal: string, o0: Observation): Promise<Plan> {
   );
   const planResult = (res.object as Plan) ?? { subgoals: [] };
   logInfo("Planner agent response received", { plan: planResult });
+
+  // Emit plan event
+  if (onEvent) {
+    await onEvent({ type: "plan", plan: planResult });
+  }
+
   return planResult;
 }
 
@@ -340,7 +346,9 @@ export async function propose(
   goal: string,
   P: Plan,
   o: Observation,
-  N = 3
+  N = 3,
+  step?: number,
+  onEvent?: AtlasEventCallback
 ): Promise<Candidate[]> {
   const hasPickerButton = o.affordances.some(a =>
     (a as any).description?.toLowerCase().includes("show local date and time picker")
@@ -437,6 +445,16 @@ CRITICAL RULES:
   );
   let C = (res.object as { candidates: Candidate[] })?.candidates ?? [];
 
+  // Emit propose event
+  if (onEvent && step !== undefined) {
+    const inputState: InputState = {
+      filledInputs: fs.filledInputs,
+      emptyInputs: fs.emptyInputs,
+      requiredEmpty: fs.requiredEmpty,
+    };
+    await onEvent({ type: "propose", step, prompt: promptContent, candidates: C, inputState });
+  }
+
   // Deterministic candidate injection: direct ISO fill for <input type="datetime-local"> when present & empty.
   try {
     const iso = deriveIsoLocalFromGoal(goal);
@@ -480,6 +498,8 @@ export async function critique(
   o: Observation,
   candidates: Candidate[],
   lookaheads: (Observation | null)[],
+  step?: number,
+  onEvent?: AtlasEventCallback
 ): Promise<Critique> {
   logInfo("Critic agent invoked", {
     goal,
@@ -529,5 +549,11 @@ Score each in [-1,1] and pick best index as 'chosenIndex'.`;
   const critiqueResult = (res.object as Critique) ?? { chosenIndex: 0, ranked: [] };
   logInfo("Critic agent response received", { critique: critiqueResult });
   logDebug("Critic agent ranked detail", { ranked: critiqueResult.ranked });
+
+  // Emit critique event
+  if (onEvent && step !== undefined) {
+    await onEvent({ type: "critique", step, prompt: promptContent, critique: critiqueResult });
+  }
+
   return critiqueResult;
 }

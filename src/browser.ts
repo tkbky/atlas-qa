@@ -26,7 +26,7 @@ export class WebEnv {
     logInfo("Stagehand environment initialized", { env, experimental: false });
   }
 
-  get page() {
+  get page(): any {
     return this.sh.context.pages()[0];
   }
 
@@ -234,7 +234,7 @@ export class WebEnv {
   }
 
   private async collectFieldInfo(selector: string): Promise<FormFieldInfo | null> {
-    return await this.page.evaluate<FormFieldInfo | null, string>(rawSelector => {
+    return await this.page.evaluate(rawSelector => {
       let strategy: "xpath" | "css" = "xpath";
       let locator = rawSelector;
       if (rawSelector.startsWith("xpath=")) {

@@ -57,3 +57,27 @@ export type Observation = {
     to: Observation;
     delta?: string;
   };
+
+  // --- Event streaming types for demo UI ---
+
+  export type InputState = {
+    filledInputs: string;
+    emptyInputs: string;
+    requiredEmpty: number;
+  };
+
+  export type AtlasEvent =
+    | { type: "init"; goal: string; startUrl: string; opts: any }
+    | { type: "plan"; plan: Plan }
+    | { type: "semantic_rules"; step: number; url: string; rules: string }
+    | { type: "propose"; step: number; prompt: string; candidates: Candidate[]; inputState: InputState }
+    | { type: "critique"; step: number; prompt: string; critique: Critique }
+    | { type: "selected_action"; step: number; action: Affordance }
+    | { type: "action_executed"; step: number; action: Affordance }
+    | { type: "observation_after"; step: number; before: Observation; after: Observation }
+    | { type: "map_update"; step: number; edge: Transition }
+    | { type: "replan"; step: number; reason: string; plan: Plan }
+    | { type: "done"; finalObservation: Observation; endedReason: string; cognitiveMap: Transition[] }
+    | { type: "error"; message: string };
+
+  export type AtlasEventCallback = (event: AtlasEvent) => void | Promise<void>;
