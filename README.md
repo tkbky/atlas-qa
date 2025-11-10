@@ -51,6 +51,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### What the Demo Shows
 
 1. **Timeline View**: Step-by-step agent collaboration
+
    - 📋 Planner's hierarchical subgoals
    - 🧠 Working Memory: form input state (filled vs empty)
    - 🎭 Actor: proposed action candidates with rationales
@@ -66,6 +67,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Usage
 
 1. Configure your test:
+
    - **Goal**: Natural language task (e.g., "Fill signup form with email test@example.com")
    - **Start URL**: Target webpage
    - **Environment**: LOCAL (Playwright) or BROWSERBASE
@@ -75,6 +77,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 2. Click **Start Run** to begin live streaming
 
 3. Watch the timeline update in real-time as:
+
    - Planner decomposes the goal
    - Actor proposes actions
    - Critic evaluates via cognitive map look-ahead
@@ -86,6 +89,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## Architecture Highlights
 
 See [doc/atlas.md](doc/atlas.md) for implementation details:
+
 - Modular actor-critic loop
 - Look-ahead Action Simulation (LAS) via Cognitive Map
 - Dynamic replanning on unexpected state changes
