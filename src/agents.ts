@@ -5,7 +5,7 @@ import { ConsoleLogger } from "@mastra/core/logger";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore, LibSQLVector } from "@mastra/libsql";
-import type { Observation, Plan, Candidate, Critique, AtlasEventCallback, InputState } from "./types.js";
+import type { Observation, Plan, Candidate, Critique, AtlasEventCallback, InputState, RecentAction } from "./types.js";
 import { logDebug, logInfo } from "./logger.js";
 
 /**
@@ -367,7 +367,8 @@ export async function propose(
   o: Observation,
   N = 3,
   step?: number,
-  onEvent?: AtlasEventCallback
+  onEvent?: AtlasEventCallback,
+  recentActions: RecentAction[] = []
 ): Promise<Candidate[]> {
   const hasPickerButton = o.affordances.some(a =>
     (a as any).description?.toLowerCase().includes("show local date and time picker")
@@ -426,12 +427,19 @@ export async function propose(
 
   logInfo("Actor agent invoked", { goal, subgoals: P.subgoals, url: o.url, title: o.title, beam: N });
 
+  // Format recent actions for working memory context
+  const recentActionsText = recentActions.length > 0
+    ? `Recent Actions (working memory context):\n${recentActions.slice(-5).map(ra =>
+        `  • Step ${ra.step}: ${ra.action.description} → ${ra.outcome}`
+      ).join("\n")}\n\n`
+    : '';
+
   const promptContent = `Goal: ${goal}
 Plan:
 ${P.subgoals.map(s => `• ${s.text} [${s.successPredicate}]`).join("\n")}
 Page: ${o.url} | ${o.title}
 
-Visible affordances:
+${recentActionsText}Visible affordances:
 ${affordanceHints}
 
 Observed input state:
@@ -520,7 +528,8 @@ export async function critique(
   candidates: Candidate[],
   lookaheads: (Observation | null)[],
   step?: number,
-  onEvent?: AtlasEventCallback
+  onEvent?: AtlasEventCallback,
+  recentActions: RecentAction[] = []
 ): Promise<Critique> {
   logInfo("Critic agent invoked", {
     goal,
@@ -537,11 +546,18 @@ export async function critique(
     .map((h, i) => `#${i} => ${h ? `${h.title} @ ${h.url}` : "UNKNOWN"}`)
     .join("\n");
 
+  // Format recent actions for working memory context
+  const recentActionsText = recentActions.length > 0
+    ? `Recent Actions (working memory context):\n${recentActions.slice(-5).map(ra =>
+        `  • Step ${ra.step}: ${ra.action.description} → ${ra.outcome}`
+      ).join("\n")}\n\n`
+    : '';
+
   const promptContent = `Goal: ${goal}
 Plan: ${P.subgoals.map(s => s.text).join(" / ")}
 Observation: ${o.title} @ ${o.url}
 
-Observed input state:
+${recentActionsText}Observed input state:
 ${fs.filledInputs.length > 0 ? `ALREADY FILLED:\n${fs.filledInputs}` : 'No inputs filled yet'}
 ${fs.emptyInputs.length > 0 ? `\nSTILL EMPTY:\n${fs.emptyInputs}` : ''}
 Required inputs still empty: ${fs.requiredEmpty}

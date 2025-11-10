@@ -35,28 +35,127 @@ export class WebEnv {
     logInfo("Navigated to URL", { url });
   }
 
-  async currentObservation(): Promise<Observation> {
+  async currentObservation(retries = 2): Promise<Observation> {
     const url = this.page.url();
     const title = await this.page.title();
-    const observed = await this.sh.observe(
-      "Find interactive controls relevant to the task, including buttons, links, form fields (inputs, textareas, selects), checkboxes, toggles, sliders, and other actionable elements."
-    );
-    // Raw page text can help with planning/critique:
-    const { pageText } = await this.sh.extract();
-    let affordances = await this.enrichAffordances(observed as Affordance[]);
 
-    // Explicitly check for datetime-local inputs that might be missed by Stagehand
-    const datetimeInputs = await this.detectDateTimeInputs();
-    if (datetimeInputs.length > 0) {
-      // Check if datetime inputs are already in affordances
-      const existingSelectors = new Set(affordances.map(a => a.selector));
-      for (const dtInput of datetimeInputs) {
-        if (!existingSelectors.has(dtInput.selector)) {
-          affordances.push(dtInput);
+    let affordances: Affordance[] = [];
+    let attempts = 0;
+
+    // Fix 2: Retry observation if empty (page might still be rendering)
+    while (affordances.length === 0 && attempts < retries) {
+      if (attempts > 0) {
+        logDebug("Observation returned no affordances, retrying", { attempt: attempts + 1, url });
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
+      const observed = await this.sh.observe(
+        "Find interactive controls relevant to the task, including buttons, links, form fields (inputs, textareas, selects), checkboxes, toggles, sliders, and other actionable elements."
+      );
+      affordances = await this.enrichAffordances(observed as Affordance[]);
+
+      // Explicitly check for datetime-local inputs that might be missed by Stagehand
+      const datetimeInputs = await this.detectDateTimeInputs();
+      if (datetimeInputs.length > 0) {
+        // Check if datetime inputs are already in affordances
+        const existingSelectors = new Set(affordances.map(a => a.selector));
+        for (const dtInput of datetimeInputs) {
+          if (!existingSelectors.has(dtInput.selector)) {
+            affordances.push(dtInput);
+          }
         }
       }
+
+      attempts++;
     }
 
+    // Log warning if still empty after retries
+    if (affordances.length === 0) {
+      // Fallback: build a minimal, generic affordance set via DOM scan
+      try {
+        const fallbackAffordances = await this.page.evaluate(() => {
+          const buildSelector = (el: Element): string => {
+            const he = el as HTMLElement;
+            if (he.id) return `#${he.id}`;
+            if (he.getAttribute('name')) return `${he.tagName.toLowerCase()}[name="${he.getAttribute('name')}"]`;
+            // Build a simple, stable-ish XPath
+            const parts: string[] = [];
+            let node: Element | null = el;
+            // Limit depth to avoid huge strings
+            let guard = 0;
+            while (node && node.nodeType === Node.ELEMENT_NODE && guard < 15) {
+              const tag = node.nodeName.toLowerCase();
+              let index = 1;
+              let sib = node.previousElementSibling;
+              while (sib) {
+                if (sib.nodeName.toLowerCase() === tag) index++;
+                sib = sib.previousElementSibling;
+              }
+              parts.unshift(`${tag}${index > 1 ? `[${index}]` : ''}`);
+              node = node.parentElement;
+              guard++;
+              if (node && node.nodeName.toLowerCase() === 'html') {
+                parts.unshift('html');
+                break;
+              }
+            }
+            return 'xpath=/' + parts.join('/');
+          };
+
+          const textFor = (el: Element): string => {
+            const t = (el.textContent || '').trim();
+            return t.length > 0 ? t : (el.getAttribute('aria-label') || '').trim();
+          };
+
+          const out: any[] = [];
+          const push = (el: Element, desc: string, method: 'click' | 'fill' | 'selectOption') => {
+            const selector = buildSelector(el);
+            out.push({ selector, description: desc, method, arguments: [] });
+          };
+
+          // Clickable controls
+          const clickable = Array.from(document.querySelectorAll('a,button,[role="button"]'));
+          clickable.forEach(el => {
+            const label = textFor(el);
+            const desc = label ? `clickable control '${label}'` : 'clickable control';
+            push(el, desc, 'click');
+          });
+
+          // Form controls
+          const inputs = Array.from(document.querySelectorAll('input,select,textarea'));
+          inputs.forEach(el => {
+            const tag = el.tagName.toLowerCase();
+            const type = (el as HTMLInputElement).type?.toLowerCase?.() || tag;
+            const label = textFor(el);
+            const baseDesc = label ? `${tag} '${label}'` : tag;
+            if (tag === 'select') {
+              push(el, `select ${baseDesc}`, 'selectOption');
+            } else {
+              push(el, `${baseDesc} form control (${type})`, 'fill');
+            }
+          });
+
+          return out;
+        });
+
+        affordances = (fallbackAffordances || []) as Affordance[];
+      } catch {
+        // Fallback generation failed; proceed with empty affordances
+      }
+
+      const { pageText } = await this.sh.extract();
+      logWarn("No affordances detected after retries", {
+        url,
+        title,
+        attempts,
+        fallbackCount: affordances.length,
+        hasPageContent: pageText.length > 0,
+        pageTextPreview: pageText.slice(0, 500)
+      });
+    }
+
+    // Raw page text can help with planning/critique:
+    const { pageText } = await this.sh.extract();
     const observation: Observation = { url, title, affordances, pageText };
     logDebug("Current observation generated", {
       url,
@@ -105,6 +204,23 @@ export class WebEnv {
 
     // Default path (Stagehand/Playwright/etc.)
     if (action.selector && action.method) {
+      // Minimal generic resilience: pre-hover and ensure visibility before clicks
+      if (action.method.toLowerCase() === 'click' && action.selector) {
+        try {
+          await this.page.hover(action.selector);
+        } catch {
+          // ignore hover failures
+        }
+        try {
+          await this.page.evaluate((sel: string) => {
+            const el = document.querySelector(sel) as HTMLElement | null;
+            el?.scrollIntoView({ block: 'center', inline: 'center' });
+          }, action.selector);
+          await this.page.waitForTimeout(200);
+        } catch {
+          // ignore scroll failures
+        }
+      }
       await this.sh.act({
         selector: action.selector,
         description: action.description,
@@ -117,6 +233,27 @@ export class WebEnv {
       throw new Error("Invalid action: need either selector+method or instruction");
     }
     logInfo("Action completed", { description: action.description });
+
+    // Fix 1: Wait for page to stabilize after action
+    // This gives time for SPAs to render and DOM to settle
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Optionally wait for network idle for navigation-like actions
+    const isNavigationAction =
+      action.description?.toLowerCase().includes('click') &&
+      (action.description?.toLowerCase().includes('link') ||
+       action.description?.toLowerCase().includes('navigation') ||
+       action.description?.toLowerCase().includes('menu'));
+
+    if (isNavigationAction) {
+      try {
+        await this.page.waitForLoadState('networkidle', { timeout: 3000 });
+        logDebug("Waited for network idle after navigation action");
+      } catch {
+        // Continue if timeout - page might be loaded already
+        logDebug("Network idle timeout - continuing anyway");
+      }
+    }
   }
 
   async goBack() {
@@ -137,7 +274,16 @@ export class WebEnv {
         const enriched: Affordance = { ...affordance };
         const method = enriched.method?.toLowerCase();
 
-        if (enriched.selector) {
+        // Fix 4: Only collect field info for elements that are likely form controls
+        const isLikelyFormControl =
+          method === 'fill' ||
+          method === 'selectoption' ||
+          affordance.description?.toLowerCase().includes('input') ||
+          affordance.description?.toLowerCase().includes('select') ||
+          affordance.description?.toLowerCase().includes('textarea') ||
+          affordance.description?.toLowerCase().includes('spinbutton');
+
+        if (enriched.selector && isLikelyFormControl) {
           try {
             const fieldInfo = await this.collectFieldInfo(enriched.selector);
             if (fieldInfo) {
@@ -147,10 +293,11 @@ export class WebEnv {
               }
             }
           } catch (error) {
-            logWarn("Failed to collect field metadata", {
+            // Fix 5: Reduce log verbosity - use DEBUG instead of WARN for non-critical errors
+            logDebug("Failed to collect field metadata (non-critical)", {
               selector: enriched.selector,
               description: enriched.description,
-              error,
+              error: (error as Error)?.message || String(error),
             });
           }
         }
@@ -234,36 +381,41 @@ export class WebEnv {
   }
 
   private async collectFieldInfo(selector: string): Promise<FormFieldInfo | null> {
-    return await this.page.evaluate(rawSelector => {
-      let strategy: "xpath" | "css" = "xpath";
-      let locator = rawSelector;
-      if (rawSelector.startsWith("xpath=")) {
-        locator = rawSelector.slice("xpath=".length);
-      } else if (rawSelector.startsWith("css=")) {
-        strategy = "css";
-        locator = rawSelector.slice("css=".length);
-      } else if (rawSelector.startsWith("//") || rawSelector.startsWith("(//")) {
-        locator = rawSelector;
-      } else {
-        strategy = "css";
-        locator = rawSelector;
-      }
+    // Fix 1: Add outer try-catch to handle page.evaluate errors
+    try {
+      return await this.page.evaluate(rawSelector => {
+        // Add inner try-catch for better error handling inside browser context
+        try {
+          let strategy: "xpath" | "css" = "xpath";
+          let locator = rawSelector;
+          if (rawSelector.startsWith("xpath=")) {
+            locator = rawSelector.slice("xpath=".length);
+          } else if (rawSelector.startsWith("css=")) {
+            strategy = "css";
+            locator = rawSelector.slice("css=".length);
+          } else if (rawSelector.startsWith("//") || rawSelector.startsWith("(//")) {
+            locator = rawSelector;
+          } else {
+            strategy = "css";
+            locator = rawSelector;
+          }
 
-      let element: HTMLElement | null = null;
-      try {
-        if (strategy === "xpath") {
-          const result = document.evaluate(locator, document, null, 9, null);
-          element = result.singleNodeValue as HTMLElement | null;
-        } else {
-          element = document.querySelector(locator) as HTMLElement | null;
-        }
-      } catch (err) {
-        return null;
-      }
+          let element: HTMLElement | null = null;
+          try {
+            if (strategy === "xpath") {
+              const result = document.evaluate(locator, document, null, 9, null);
+              element = result.singleNodeValue as HTMLElement | null;
+            } else {
+              element = document.querySelector(locator) as HTMLElement | null;
+            }
+          } catch (selectorError) {
+            // Selector evaluation failed - return null gracefully
+            return null;
+          }
 
-      if (!element) {
-        return null;
-      }
+          if (!element) {
+            return null;
+          }
 
       const collectLabel = () => {
         let candidate: Element | null = null;
@@ -360,6 +512,14 @@ export class WebEnv {
       }
 
       return base;
-    }, selector);
+        } catch (innerError) {
+          // Catch any errors during field info collection inside browser context
+          return null;
+        }
+      }, selector);
+    } catch (outerError) {
+      // Catch errors from page.evaluate itself (e.g., page closed, navigation, timeout)
+      return null;
+    }
   }
 }

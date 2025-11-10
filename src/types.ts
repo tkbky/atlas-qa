@@ -53,11 +53,19 @@ export type Observation = {
     ranked: { index: number; value: number; reason: string }[];
   };
 
-  export type Transition = {
-    fromKey: string;
-    actionKey: string;
-    to: Observation;
-    delta?: string;
+export type Transition = {
+  fromKey: string;
+  actionKey: string;
+  to: Observation;
+  delta?: string;
+};
+
+  // --- Recent action tracking for working memory ---
+
+  export type RecentAction = {
+    step: number;
+    action: Affordance;
+    outcome: string;
   };
 
   // --- Event streaming types for demo UI ---

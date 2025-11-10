@@ -9,8 +9,8 @@ type ControlsProps = {
 };
 
 export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
-  const [goal, setGoal] = useState("Add 2 books into the cart. Check the cart and verify the books are added.");
-  const [startUrl, setStartUrl] = useState("https://amazon.sg");
+  const [goal, setGoal] = useState("Add 1 random memobottle to the cart.");
+  const [startUrl, setStartUrl] = useState("https://www.memobottle.com/");
   const [env, setEnv] = useState("LOCAL");
   const [beamSize, setBeamSize] = useState(3);
   const [maxSteps, setMaxSteps] = useState(15);

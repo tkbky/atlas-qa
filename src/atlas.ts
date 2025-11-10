@@ -1,4 +1,4 @@
-import type { Observation, Plan, Candidate, Critique, Transition, Affordance, AtlasEventCallback } from "./types.js";
+import type { Observation, Plan, Candidate, Critique, Transition, Affordance, AtlasEventCallback, RecentAction } from "./types.js";
 import { CognitiveMap } from "./cognitiveMap.js";
 import { WebEnv } from "./browser.js";
 import { plan, propose, critique, isFormControl, memory } from "./agents.js";
@@ -107,11 +107,35 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
     let o: Observation = await web.currentObservation();
     logDebug("Initial observation captured", summarizeObservation(o));
 
+    // Fix 3: Check initial observation for affordances
+    if (o.affordances.length === 0) {
+      logError("No affordances found on initial page load", {
+        url: o.url,
+        title: o.title,
+        pageTextPreview: o.pageText?.slice(0, 500)
+      });
+      endedReason = "no_initial_affordances";
+      if (onEvent) {
+        await onEvent({ type: "done", finalObservation: clone(o), endedReason, cognitiveMap: M.snapshot() });
+      }
+      return {
+        goal,
+        startUrl,
+        steps: [],
+        finalObservation: o,
+        endedReason,
+        cognitiveMap: M.snapshot()
+      };
+    }
+
     let P = await plan(goal, o, onEvent);
     logInfo("Initial plan generated", { plan: P });
 
     // Track last executed action to influence subsequent proposals (e.g., avoid repeated picker clicks)
     let lastAction: Affordance | null = null;
+
+    // Track recent actions for working memory context (last 5 steps)
+    const recentActions: RecentAction[] = [];
 
     for (let t = 0; t < maxSteps; t++) {
       logInfo("Step started", { step: t, plan: P.subgoals });
@@ -136,7 +160,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       }
 
       // Ask for at least 2 so the Critic has a choice
-      let C = await propose(augmentedGoal, P, o, Math.max(beamSize, 2), t, onEvent);
+      let C = await propose(augmentedGoal, P, o, Math.max(beamSize, 2), t, onEvent, recentActions);
       logInfo("Candidates proposed", { step: t, candidates: C });
       if (C.length === 0) {
         logWarn("No candidates proposed, terminating loop", { step: t });
@@ -151,7 +175,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const lookaheads = C.map(c => M.lookup(o, c.action) ?? M.placeholder(o, c.action));
       logDebug("Lookahead states prepared", { step: t, lookaheads });
 
-      const critiqueRes = await critique(goal, P, o, C, lookaheads, t, onEvent);
+      const critiqueRes = await critique(goal, P, o, C, lookaheads, t, onEvent, recentActions);
       logInfo("Critique results received", { step: t, critique: critiqueRes });
 
       // Check if goal is met according to critic evaluation
@@ -203,7 +227,8 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
             o,
             Math.max(beamSize, 3),
             t,
-            onEvent
+            onEvent,
+            recentActions
           );
           if (C.length === 0) {
             P = await plan(goal, o, onEvent);
@@ -216,7 +241,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // Prevent repeated picker clicks if the last action already clicked the picker
       if (repeatedPickerClick) {
         const noRepeatGoal = `${goal} (picker already clicked; now set Year/Month/Day/Hours/Minutes/AM-PM via segmented controls—do NOT click the picker again)`;
-        const newCandidates = await propose(noRepeatGoal, P, o, Math.max(beamSize, 3), t, onEvent);
+        const newCandidates = await propose(noRepeatGoal, P, o, Math.max(beamSize, 3), t, onEvent, recentActions);
         const alt = newCandidates.find(c =>
           !(c.action.description?.toLowerCase().includes("show local date and time picker") ?? false)
         );
@@ -229,7 +254,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // ---------------------------- optional critic veto ----------------------------
       const best = critiqueRes.ranked?.[0];
       if (best && best.value < vetoThreshold) {
-        C = await propose(`${goal} (avoid low-value actions; prefer increasing data completeness first)`, P, o, Math.max(beamSize, 3), t, onEvent);
+        C = await propose(`${goal} (avoid low-value actions; prefer increasing data completeness first)`, P, o, Math.max(beamSize, 3), t, onEvent, recentActions);
         if (C.length === 0) { P = await plan(goal, o, onEvent); continue; }
         choice = C[0];
       }
@@ -255,6 +280,49 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       const oNext = await web.currentObservation();
       logDebug("Observation after action", { step: t, observation: summarizeObservation(oNext) });
 
+      // Fix 3: Handle empty affordances (page might need recovery)
+      if (oNext.affordances.length === 0) {
+        logWarn("No affordances found after action, attempting recovery", {
+          step: t,
+          url: oNext.url,
+          title: oNext.title,
+          lastAction: choice.action.description,
+          pageTextPreview: oNext.pageText?.slice(0, 500)
+        });
+
+        // Try going back if we're not on the first step
+        if (t > 0) {
+          logInfo("Attempting to go back to previous page");
+          await web.goBack();
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Re-observe after going back
+          const oRecovered = await web.currentObservation();
+          if (oRecovered.affordances.length > 0) {
+            logInfo("Successfully recovered by going back", {
+              affordanceCount: oRecovered.affordances.length
+            });
+            // Continue with recovered observation but skip incrementing step
+            continue;
+          } else {
+            logError("Still no affordances after going back, cannot proceed");
+            endedReason = "no_affordances";
+            if (onEvent) {
+              await onEvent({ type: "done", finalObservation: clone(oRecovered), endedReason, cognitiveMap: M.snapshot() });
+            }
+            break;
+          }
+        } else {
+          // If on first step, cannot go back - terminate
+          logError("No affordances on initial step after action, cannot proceed");
+          endedReason = "no_affordances";
+          if (onEvent) {
+            await onEvent({ type: "done", finalObservation: clone(oNext), endedReason, cognitiveMap: M.snapshot() });
+          }
+          break;
+        }
+      }
+
       // Emit observation_after event
       if (onEvent) {
         await onEvent({ type: "observation_after", step: t, before: clone(o), after: clone(oNext) });
@@ -262,6 +330,60 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
 
       // Remember last action for next-step steering
       lastAction = choice.action;
+
+      // Determine action outcome for working memory
+      const actionOutcome = (() => {
+        const method = choice.action.method;
+        const description = choice.action.description || "";
+
+        // Check if we navigated
+        if (o.url !== oNext.url) {
+          return `navigated to ${oNext.url}`;
+        }
+
+        // Check if page title changed
+        if (o.title !== oNext.title) {
+          return `page changed to "${oNext.title}"`;
+        }
+
+        // For fill/type actions, indicate field was filled
+        if (method === "fill" || method === "type") {
+          const value = choice.action.arguments?.[0];
+          if (value && value.length > 20) {
+            return `field filled`;
+          }
+          return `filled with "${value}"`;
+        }
+
+        // For selectOption, indicate selection
+        if (method === "selectOption") {
+          const value = choice.action.arguments?.[0];
+          return `selected "${value}"`;
+        }
+
+        // For clicks, check what happened
+        if (method === "click") {
+          // Check if a form control value changed
+          const requiredEmptyBefore = requiredEmptyCount(o);
+          const requiredEmptyAfter = requiredEmptyCount(oNext);
+          if (requiredEmptyAfter < requiredEmptyBefore) {
+            return `clicked, form state updated`;
+          }
+          return `clicked`;
+        }
+
+        return `executed`;
+      })();
+
+      // Add to recent actions (keep last 5)
+      recentActions.push({
+        step: t,
+        action: clone(choice.action),
+        outcome: actionOutcome,
+      });
+      if (recentActions.length > 5) {
+        recentActions.shift(); // Remove oldest
+      }
 
       const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
       M.record(o, choice.action, oNext, delta);
