@@ -9,8 +9,8 @@ type ControlsProps = {
 };
 
 export function Controls({ onStart, onStop, isRunning }: ControlsProps) {
-  const [goal, setGoal] = useState("1. Login using email: gaurav@yopmail.com, password: Welcome@1. 2. Navigate to the lead management dashboard (either by clicking Marketing > Lead Management in the left menu, or by going directly to https://dev.mbodev.me/app/lead-management). 3. Explore and test filtering leads by different date ranges. Try various date range filters and verify how the leads are filtered based on the selected date ranges.");
-  const [startUrl, setStartUrl] = useState("https://dev.mbodev.me/launch");
+  const [goal, setGoal] = useState("Add 2 books into the cart. Check the cart and verify the books are added.");
+  const [startUrl, setStartUrl] = useState("https:amazon.sg");
   const [env, setEnv] = useState("LOCAL");
   const [beamSize, setBeamSize] = useState(3);
   const [maxSteps, setMaxSteps] = useState(15);
