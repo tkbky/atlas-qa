@@ -144,6 +144,17 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
 
       const critiqueRes = await critique(goal, P, o, C, lookaheads, t, onEvent);
       logInfo("Critique results received", { step: t, critique: critiqueRes });
+
+      // Check if goal is met according to critic evaluation
+      if (critiqueRes.goalMet) {
+        logInfo("Goal met by critic evaluation", { step: t, reason: critiqueRes.goalMetReason });
+        endedReason = "goal_met";
+        if (onEvent) {
+          await onEvent({ type: "done", finalObservation: clone(o), endedReason, cognitiveMap: M.snapshot() });
+        }
+        break;
+      }
+
       const choiceIdx = Math.max(0, Math.min(C.length - 1, critiqueRes.chosenIndex));
       let choice = C[choiceIdx];
 

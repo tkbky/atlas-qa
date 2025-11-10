@@ -84,6 +84,10 @@ export const criticAgent = new Agent({
     "DATETIME-LOCAL ORDERING RULE: Prefer a single ISO 'YYYY-MM-DDTHH:mm' direct fill on the <input type='datetime-local'> when present.",
     "Down-rank actions that click the picker or edit spinbuttons if direct fill on the input is available. Resort to picker/spinbuttons only when direct fill is unavailable.",
     "Check goal/plan requirements before skipping 'optional' fields - they may be required by the task.",
+    "After scoring candidates, evaluate if all plan subgoals are satisfied based on the current observation.",
+    "Set goalMet=true ONLY when the goal is fully achieved (e.g., success page shown, all plan steps completed, confirmation message visible).",
+    "Do NOT set goalMet=true just because there are no obvious next actions - the goal must be verifiably complete.",
+    "If goalMet=true, you MUST provide a clear goalMetReason explaining what confirms the goal is achieved.",
   ],
 });
 
@@ -486,6 +490,8 @@ CRITICAL RULES:
 }
 
 const CritiqueSchema = z.object({
+  goalMet: z.boolean().describe("True if all plan subgoals are satisfied and the goal is fully achieved"),
+  goalMetReason: z.string().describe("Explanation of why the goal is met if goalMet is true, or empty string if goalMet is false"),
   chosenIndex: z.number(),
   ranked: z.array(
     z.object({ index: z.number(), value: z.number(), reason: z.string() })
@@ -534,7 +540,14 @@ ${laBlock}
 CRITICAL: Down-rank candidates that try to re-fill inputs shown as "ALREADY FILLED".
 When Required inputs still empty = 0, prefer candidates that advance the flow (e.g., clicking Next/Submit buttons).
 For DATETIME-LOCAL: If a 'Show local date and time picker' button is visible and the datetime-local field is empty, prefer clicking it ONCE and then setting segments. Down-rank repeated clicks on the picker; if it remains visible after the first click, proceed to set the segments. Use ISO fill only if neither picker nor segments are available.
-Score each in [-1,1] and pick best index as 'chosenIndex'.`;
+Score each in [-1,1] and pick best index as 'chosenIndex'.
+
+GOAL COMPLETION EVALUATION:
+After scoring, evaluate if the goal is fully achieved:
+- Check if all plan subgoals are satisfied based on the current observation
+- Look for success indicators: success/completion messages, confirmation pages, redirects to expected final states
+- Set goalMet=true ONLY if the goal is verifiably complete (not just "no next action")
+- If goalMet=true, provide goalMetReason explaining what confirms completion`;
 
   // Log the full prompt for debugging LLM reasoning
   logDebug("Critic agent prompt", { prompt: promptContent });
@@ -546,7 +559,7 @@ Score each in [-1,1] and pick best index as 'chosenIndex'.`;
     ],
     { structuredOutput: { schema: CritiqueSchema } }
   );
-  const critiqueResult = (res.object as Critique) ?? { chosenIndex: 0, ranked: [] };
+  const critiqueResult = (res.object as Critique) ?? { goalMet: false, goalMetReason: "", chosenIndex: 0, ranked: [] };
   logInfo("Critic agent response received", { critique: critiqueResult });
   logDebug("Critic agent ranked detail", { ranked: critiqueResult.ranked });
 

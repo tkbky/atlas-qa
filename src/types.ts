@@ -47,6 +47,8 @@ export type Observation = {
   };
 
   export type Critique = {
+    goalMet: boolean;
+    goalMetReason: string;
     chosenIndex: number;
     ranked: { index: number; value: number; reason: string }[];
   };
