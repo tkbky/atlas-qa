@@ -268,6 +268,69 @@ export class WebEnv {
     }
   }
 
+  /**
+   * Best-effort Shopify cart count reader.
+   * Uses the platform JSON endpoint '/cart.js' which returns { item_count, ... }.
+   * Returns null when the endpoint is unavailable (non-Shopify or blocked).
+   */
+  async getShopifyCartCount(timeoutMs = 0): Promise<number | null> {
+    try {
+      const count = await this.page.evaluate(async (ms: number) => {
+        const fetchCount = async (): Promise<number | null> => {
+          try {
+            const res = await fetch('/cart.js', {
+              credentials: 'same-origin',
+              cache: 'no-store',
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            const n = (data && typeof data.item_count === 'number') ? data.item_count : null;
+            return n;
+          } catch {
+            return null;
+          }
+        };
+        if (!ms || ms <= 0) {
+          return await fetchCount();
+        }
+        const deadline = Date.now() + ms;
+        let last: number | null = null;
+        while (Date.now() < deadline) {
+          const n = await fetchCount();
+          if (typeof n === 'number') return n;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return last;
+      }, timeoutMs);
+      if (typeof count === 'number') {
+        logDebug("Shopify cart count read", { count });
+        return count;
+      }
+    } catch {
+      // ignore - likely not a Shopify store or blocked by CSP
+    }
+    return null;
+  }
+
+  /**
+   * Polls '/cart.js' for an increase over a prior count.
+   * Returns the outcome with the last observed postCount.
+   */
+  async waitForShopifyCartIncrease(previousCount: number | null, timeoutMs = 4000): Promise<{ increased: boolean; postCount: number | null }> {
+    const deadline = Date.now() + timeoutMs;
+    let last: number | null = await this.getShopifyCartCount(0);
+    while (Date.now() < deadline) {
+      const current = await this.getShopifyCartCount(0);
+      if (typeof previousCount === 'number' && typeof current === 'number' && current > previousCount) {
+        logInfo("Shopify cart count increased", { previousCount, current });
+        return { increased: true, postCount: current };
+      }
+      last = current;
+      await new Promise(r => setTimeout(r, 300));
+    }
+    return { increased: false, postCount: last };
+  }
+
   private async enrichAffordances(affordances: Affordance[]): Promise<Affordance[]> {
     return await Promise.all(
       affordances.map(async affordance => {

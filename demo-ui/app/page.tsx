@@ -195,6 +195,7 @@ export default function Home() {
         ...prev,
         status: "completed",
         cognitiveMap: event.cognitiveMap,
+        endedReason: event.endedReason,
       }));
       eventSource.close();
     });

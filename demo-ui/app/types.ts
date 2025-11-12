@@ -8,6 +8,7 @@ import type {
   Affordance,
   AtlasEvent,
   InputState,
+  RecentAction,
 } from "@atlas-core/types.js";
 
 export type {
@@ -19,6 +20,7 @@ export type {
   Affordance,
   AtlasEvent,
   InputState,
+  RecentAction,
 };
 
 export type StepData = {
@@ -44,4 +46,5 @@ export type RunState = {
   cognitiveMap: Transition[];
   semanticRules: string;
   errorMessage?: string;
+  endedReason?: string;
 };

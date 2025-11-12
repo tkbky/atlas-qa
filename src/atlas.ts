@@ -137,6 +137,9 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
     // Track recent actions for working memory context (last 5 steps)
     const recentActions: RecentAction[] = [];
 
+    // Track Shopify cart count to detect progress even without page navigation
+    let lastCartCount: number | null = null;
+
     for (let t = 0; t < maxSteps; t++) {
       logInfo("Step started", { step: t, plan: P.subgoals });
 
@@ -165,9 +168,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       if (C.length === 0) {
         logWarn("No candidates proposed, terminating loop", { step: t });
         endedReason = "no_candidates";
-        if (onEvent) {
-          await onEvent({ type: "done", finalObservation: clone(o), endedReason, cognitiveMap: M.snapshot() });
-        }
+        // Don't send "done" event here - it will be sent after the loop ends with complete state
         break;
       }
 
@@ -182,9 +183,7 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       if (critiqueRes.goalMet) {
         logInfo("Goal met by critic evaluation", { step: t, reason: critiqueRes.goalMetReason });
         endedReason = "goal_met";
-        if (onEvent) {
-          await onEvent({ type: "done", finalObservation: clone(o), endedReason, cognitiveMap: M.snapshot() });
-        }
+        // Don't send "done" event here - it will be sent after the loop ends with complete state
         break;
       }
 
@@ -268,6 +267,8 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       }
 
       // EXECUTE
+      // Capture pre-action Shopify cart count (if available) to deterministically detect add-to-cart
+      const preShopifyCartCount = await web.getShopifyCartCount(0).catch(() => null);
       await web.act(choice.action);
       logInfo("Action executed", { step: t, action: choice.action });
 
@@ -279,6 +280,52 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // OBSERVE NEXT
       const oNext = await web.currentObservation();
       logDebug("Observation after action", { step: t, observation: summarizeObservation(oNext) });
+
+      // Deterministic goal check for Shopify carts:
+      // If '/cart.js' exists and the item_count increased after the action, consider the goal met.
+      // This avoids UI heuristics and works robustly across Shopify-powered stores.
+      try {
+        const { increased, postCount } = await web.waitForShopifyCartIncrease(
+          typeof preShopifyCartCount === "number" ? preShopifyCartCount : null,
+          3000
+        );
+        if (increased) {
+          logInfo("Goal met by Shopify cart increment", {
+            step: t,
+            preCartCount: preShopifyCartCount,
+            postCartCount: postCount
+          });
+          endedReason = "goal_met";
+          // Update o to oNext so it's available for the final "done" event
+          // We need to do this early since we're about to break
+          const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
+          M.record(o, choice.action, oNext, delta);
+          if (onEvent) {
+            const edge: Transition = {
+              fromKey: o.url,
+              actionKey: choice.action.description,
+              to: clone(oNext),
+              delta,
+            };
+            await onEvent({ type: "map_update", step: t, edge });
+          }
+          steps.push({
+            step: t,
+            plan: clone(P),
+            candidates: clone(C),
+            critique: clone(critiqueRes),
+            chosenIndex: critiqueRes.chosenIndex,
+            action: clone(choice.action),
+            observationBefore: clone(o),
+            observationAfter: clone(oNext),
+          });
+          o = oNext;
+          // Don't send "done" event here - it will be sent after the loop ends with complete state
+          break;
+        }
+      } catch {
+        // ignore failures; continue with normal flow
+      }
 
       // Fix 3: Handle empty affordances (page might need recovery)
       if (oNext.affordances.length === 0) {
@@ -307,18 +354,39 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
           } else {
             logError("Still no affordances after going back, cannot proceed");
             endedReason = "no_affordances";
-            if (onEvent) {
-              await onEvent({ type: "done", finalObservation: clone(oRecovered), endedReason, cognitiveMap: M.snapshot() });
-            }
+            o = oRecovered; // Update o for the final "done" event
+            // Don't send "done" event here - it will be sent after the loop ends with complete state
             break;
           }
         } else {
           // If on first step, cannot go back - terminate
           logError("No affordances on initial step after action, cannot proceed");
           endedReason = "no_affordances";
+          // Update o to oNext for the final "done" event
+          // We need to update cognitive map and steps since we're breaking early
+          const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
+          M.record(o, choice.action, oNext, delta);
           if (onEvent) {
-            await onEvent({ type: "done", finalObservation: clone(oNext), endedReason, cognitiveMap: M.snapshot() });
+            const edge: Transition = {
+              fromKey: o.url,
+              actionKey: choice.action.description,
+              to: clone(oNext),
+              delta,
+            };
+            await onEvent({ type: "map_update", step: t, edge });
           }
+          steps.push({
+            step: t,
+            plan: clone(P),
+            candidates: clone(C),
+            critique: clone(critiqueRes),
+            chosenIndex: critiqueRes.chosenIndex,
+            action: clone(choice.action),
+            observationBefore: clone(o),
+            observationAfter: clone(oNext),
+          });
+          o = oNext;
+          // Don't send "done" event here - it will be sent after the loop ends with complete state
           break;
         }
       }
@@ -331,10 +399,54 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
       // Remember last action for next-step steering
       lastAction = choice.action;
 
+      // Detect meaningful affordance changes (e.g., Cart → Cart 1, Badge updates)
+      const detectAffordanceChanges = () => {
+        const changes: string[] = [];
+
+        // Check for cart badge/count changes
+        const beforeCart = o.affordances.find(a =>
+          (a.description?.toLowerCase().includes('cart') ?? false) &&
+          !a.description?.toLowerCase().includes('add to cart')
+        );
+        const afterCart = oNext.affordances.find(a =>
+          (a.description?.toLowerCase().includes('cart') ?? false) &&
+          !a.description?.toLowerCase().includes('add to cart')
+        );
+
+        if (beforeCart && afterCart && beforeCart.description !== afterCart.description) {
+          // Extract counts if present (e.g., "Cart 1", "Cart (1)", "Bag 2 items")
+          const beforeCount = beforeCart.description?.match(/(\d+)/)?.[1] || "0";
+          const afterCount = afterCart.description?.match(/(\d+)/)?.[1] || "0";
+          if (parseInt(afterCount, 10) > parseInt(beforeCount, 10)) {
+            changes.push(`cart count increased (${beforeCount} → ${afterCount})`);
+          }
+        }
+
+        // Check for badge/notification changes
+        const beforeBadges = o.affordances.filter(a =>
+          a.description?.toLowerCase().includes('badge') ||
+          a.description?.toLowerCase().includes('notification') ||
+          a.description?.toLowerCase().includes('count')
+        );
+        const afterBadges = oNext.affordances.filter(a =>
+          a.description?.toLowerCase().includes('badge') ||
+          a.description?.toLowerCase().includes('notification') ||
+          a.description?.toLowerCase().includes('count')
+        );
+
+        if (beforeBadges.length !== afterBadges.length ||
+            JSON.stringify(beforeBadges) !== JSON.stringify(afterBadges)) {
+          changes.push(`UI badges/counts changed`);
+        }
+
+        return changes;
+      };
+
       // Determine action outcome for working memory
       const actionOutcome = (() => {
         const method = choice.action.method;
         const description = choice.action.description || "";
+        const affordanceChanges = detectAffordanceChanges();
 
         // Check if we navigated
         if (o.url !== oNext.url) {
@@ -355,20 +467,79 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
           return `filled with "${value}"`;
         }
 
-        // For selectOption, indicate selection
+        // For selectOption, indicate selection with more context
         if (method === "selectOption") {
           const value = choice.action.arguments?.[0];
-          return `selected "${value}"`;
+          // Extract a short label from the description (e.g., "size selector" from "Select size dropdown")
+          const fieldMatch = description.match(/(?:select\s+)?(.+?)(?:\s+(?:dropdown|selector|field|control|option))?$/i);
+          const fieldName = fieldMatch?.[1]?.trim() || "option";
+          return `selected ${fieldName}: "${value}"`;
         }
 
-        // For clicks, check what happened
+        // For clicks, check what happened and provide more context
         if (method === "click") {
           // Check if a form control value changed
           const requiredEmptyBefore = requiredEmptyCount(o);
           const requiredEmptyAfter = requiredEmptyCount(oNext);
+
+          // Detect common click patterns from description
+          const descLower = description.toLowerCase();
+
+          // Add to cart patterns - check both description AND affordance changes
+          if (descLower.includes("add") && (descLower.includes("cart") || descLower.includes("bag"))) {
+            // Check if cart count/badge actually changed
+            if (affordanceChanges.some(c => c.includes('cart count increased'))) {
+              return `added to cart (${affordanceChanges.find(c => c.includes('cart count'))})`;
+            }
+            if (requiredEmptyAfter < requiredEmptyBefore) {
+              return `added to cart, form state changed`;
+            }
+            // If no observable change, might be async or modal-based
+            return `attempted to add to cart`;
+          }
+
+          // Submit/Continue/Next patterns
+          if (descLower.includes("submit") || descLower.includes("continue") ||
+              descLower.includes("next") || descLower.includes("proceed")) {
+            if (requiredEmptyAfter < requiredEmptyBefore) {
+              return `clicked submit, form advanced`;
+            }
+            return `clicked submit/next`;
+          }
+
+          // Checkbox/radio selection patterns
+          if (descLower.includes("checkbox") || descLower.includes("radio")) {
+            return `toggled checkbox/radio option`;
+          }
+
+          // Size/variant selection patterns (for e-commerce)
+          if (descLower.includes("size") || descLower.includes("variant") ||
+              descLower.includes("color") || descLower.includes("option")) {
+            // Try to extract the selected value from description
+            const sizeMatch = description.match(/(?:size|variant|color|option)[:\s]+([^\s,]+)/i);
+            if (sizeMatch) {
+              return `selected ${sizeMatch[1]}`;
+            }
+            return `clicked to select option`;
+          }
+
+          // Generic form state change detection
           if (requiredEmptyAfter < requiredEmptyBefore) {
             return `clicked, form state updated`;
           }
+
+          // Generic affordance changes (e.g., badges, counts, notifications)
+          if (affordanceChanges.length > 0) {
+            return `clicked, ${affordanceChanges.join(', ')}`;
+          }
+
+          // Extract meaningful part from description for generic clicks
+          // e.g., "Click the 'Login' button" -> "clicked 'Login'"
+          const buttonMatch = description.match(/['"'](.+?)['"']/);
+          if (buttonMatch) {
+            return `clicked '${buttonMatch[1]}'`;
+          }
+
           return `clicked`;
         }
 
@@ -385,6 +556,71 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         recentActions.shift(); // Remove oldest
       }
 
+      // Post-execution goal completion check based on Recent Actions and observable signals
+      // This catches goal completion that wasn't detected by the pre-execution Critic
+      const checkGoalCompletion = (): { met: boolean; reason: string } => {
+        const goalLower = goal.toLowerCase();
+
+        // Pattern 1: "add X item(s) to cart" - check if cart count increased or "added to cart" in recent actions
+        if (goalLower.includes("add") && goalLower.includes("cart")) {
+          // Check recent actions for successful add
+          const addedToCart = recentActions.some(ra =>
+            ra.outcome.includes("added to cart") || ra.outcome.includes("cart count increased")
+          );
+          if (addedToCart) {
+            return { met: true, reason: "Recent actions show item successfully added to cart" };
+          }
+
+          // Check if cart affordance shows items
+          const cartAff = oNext.affordances.find(a =>
+            a.description?.toLowerCase().includes('cart') &&
+            !a.description?.toLowerCase().includes('add to cart')
+          );
+          if (cartAff && /\d+/.test(cartAff.description || "")) {
+            const count = parseInt((cartAff.description?.match(/(\d+)/)?.[1] || "0"), 10);
+            if (count > 0) {
+              return { met: true, reason: `Cart affordance shows ${count} item(s) - goal to add item completed` };
+            }
+          }
+        }
+
+        // Pattern 2: "fill form with X" - check if all required fields filled and submit clicked
+        if (goalLower.includes("fill") && goalLower.includes("form")) {
+          const allFieldsFilled = requiredEmptyCount(oNext) === 0;
+          const submitClicked = recentActions.some(ra =>
+            ra.action.description?.toLowerCase().includes('submit') ||
+            ra.action.description?.toLowerCase().includes('continue') ||
+            ra.action.description?.toLowerCase().includes('next')
+          );
+          if (allFieldsFilled && submitClicked) {
+            return { met: true, reason: "All form fields filled and submit clicked" };
+          }
+        }
+
+        // Pattern 3: "navigate to X" - check if we're at the target URL/page
+        const navMatch = goalLower.match(/navigate to (.+)/);
+        if (navMatch) {
+          const target = navMatch[1].trim();
+          if (oNext.url.toLowerCase().includes(target) || oNext.title.toLowerCase().includes(target)) {
+            return { met: true, reason: `Successfully navigated to ${target} (${oNext.title})` };
+          }
+        }
+
+        // Pattern 4: Generic completion signals in recent actions
+        const completionSignals = ["success", "completed", "confirmed", "submitted", "added", "saved"];
+        const hasCompletionSignal = recentActions.some(ra =>
+          completionSignals.some(signal => ra.outcome.toLowerCase().includes(signal))
+        );
+        if (hasCompletionSignal && oNext.title.toLowerCase().includes("success") ||
+            oNext.title.toLowerCase().includes("confirm") ||
+            oNext.title.toLowerCase().includes("thank")) {
+          return { met: true, reason: "Success/confirmation page reached after completion action" };
+        }
+
+        return { met: false, reason: "" };
+      };
+
+      // Update cognitive map and steps before checking goal completion
       const delta = `${o.title} -> ${oNext.title} via ${choice.action.description}`;
       M.record(o, choice.action, oNext, delta);
       logDebug("Cognitive map updated", { step: t, delta });
@@ -411,10 +647,29 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
         observationAfter: clone(oNext),
       });
 
+      // Update o to oNext before goal check so it's available if we break
+      o = oNext;
+
+      const goalCheck = checkGoalCompletion();
+      if (goalCheck.met) {
+        logInfo("Goal met by post-execution check", { step: t, reason: goalCheck.reason, recentActions });
+        endedReason = "goal_met";
+        // Don't send "done" event here - it will be sent after the loop ends with complete state
+        break;
+      }
+
       // PROGRESS-AWARE REPLANNING:
-      // Only treat as "no progress" if URL/title stayed the same AND the count of empty required inputs did not decrease.
+      // Only treat as "no progress" if URL/title stayed the same AND the count of empty required inputs did not decrease
+      // AND any platform-specific signals (like Shopify cart count) haven't changed.
       const sameUrlTitle = (o.url === oNext.url && o.title === oNext.title);
-      const noProgress = sameUrlTitle && (requiredEmptyCount(oNext) >= requiredEmptyCount(o));
+      const formFieldsNotProgressed = (requiredEmptyCount(oNext) >= requiredEmptyCount(o));
+
+      // Check if Shopify cart count increased since last step (signals progress even if page didn't navigate)
+      const currentCartCount = await web.getShopifyCartCount(0).catch(() => null);
+      const cartCountIncreased = lastCartCount !== null && currentCartCount !== null && currentCartCount > lastCartCount;
+      lastCartCount = currentCartCount; // Update for next step
+
+      const noProgress = sameUrlTitle && formFieldsNotProgressed && !cartCountIncreased;
       if (noProgress && t % 4 === 3) {
         logInfo("Replanning triggered", { step: t, reason: "no-progress" });
         P = await plan(goal, oNext, onEvent);
@@ -425,8 +680,6 @@ export async function runAtlas(goal: string, startUrl: string, opts: AtlasOption
           await onEvent({ type: "replan", step: t, reason: "no-progress", plan: P });
         }
       }
-
-      o = oNext;
 
       if (/success|completed|done/i.test(o.title)) {
         logInfo("Success heuristic matched, terminating run", { step: t, title: o.title });

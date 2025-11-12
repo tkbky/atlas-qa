@@ -67,6 +67,10 @@ export const actorAgent = new Agent({
     "You are the Actor. Given the plan + current observation affordances, propose up to N safe next actions.",
     "Only propose actions visible in the observation; avoid destructive actions (delete/purchase).",
     "Return short rationales.",
+    "WORKING MEMORY AWARENESS:",
+    "- ALWAYS review Recent Actions to avoid repeating the same action.",
+    "- If you see an action was already done (e.g., 'added to cart'), DO NOT propose it again.",
+    "- Use recent actions to understand what has already been accomplished.",
     "Always include the action fields: description, selector, method, arguments, instruction; use null (or []) when a value is not applicable.",
     "CRITICAL METHOD SELECTION RULES:",
     "- For <input> elements: use method='fill' with the value as first argument",
@@ -95,14 +99,20 @@ export const criticAgent = new Agent({
     "Score candidates in [-1,1] for goal alignment, recoverability, and plan consistency.",
     "Prefer actions that expose new affordances while avoiding dead-ends or irreversible transitions.",
     "Down-rank candidates that submit forms without first filling required fields with the goal-specified values.",
+    "WORKING MEMORY & GOAL COMPLETION:",
+    "- CRITICAL: Review Recent Actions to check if the goal has already been achieved.",
+    "- If the goal is 'add 1 item to cart' and Recent Actions shows 'added to cart', the goal is MET.",
+    "- NEVER repeat actions shown in Recent Actions unless necessary for goal completion.",
+    "- Down-rank candidates that repeat actions already successfully completed (shown in Recent Actions).",
+    "- Set goalMet=true when Recent Actions + current observation confirms goal completion.",
     "IMPORTANT: If the goal explicitly requires filling an optional field, prioritize that over advancing.",
     "DATETIME-LOCAL ORDERING RULE: Prefer a single ISO 'YYYY-MM-DDTHH:mm' direct fill on the <input type='datetime-local'> when present.",
     "Down-rank actions that click the picker or edit spinbuttons if direct fill on the input is available. Resort to picker/spinbuttons only when direct fill is unavailable.",
     "Check goal/plan requirements before skipping 'optional' fields - they may be required by the task.",
-    "After scoring candidates, evaluate if all plan subgoals are satisfied based on the current observation.",
-    "Set goalMet=true ONLY when the goal is fully achieved (e.g., success page shown, all plan steps completed, confirmation message visible).",
-    "Do NOT set goalMet=true just because there are no obvious next actions - the goal must be verifiably complete.",
-    "If goalMet=true, you MUST provide a clear goalMetReason explaining what confirms the goal is achieved.",
+    "After scoring candidates, evaluate if all plan subgoals are satisfied based on the current observation AND Recent Actions.",
+    "Set goalMet=true when: (1) Goal explicitly states completion (e.g., 'add 1 item' and Recent Actions shows item added), OR (2) Success page/confirmation visible.",
+    "Do NOT set goalMet=true just because there are no obvious next actions - check Recent Actions for evidence of goal completion.",
+    "If goalMet=true, you MUST provide a clear goalMetReason explaining what confirms the goal is achieved (reference Recent Actions if applicable).",
   ],
 });
 
@@ -478,6 +488,7 @@ CRITICAL RULES:
       filledInputs: fs.filledInputs,
       emptyInputs: fs.emptyInputs,
       requiredEmpty: fs.requiredEmpty,
+      recentActions: recentActions.slice(-5),  // Last 5 actions for working memory context
     };
     await onEvent({ type: "propose", step, prompt: promptContent, candidates: C, inputState });
   }
@@ -553,9 +564,41 @@ export async function critique(
       ).join("\n")}\n\n`
     : '';
 
+  // Detect observable signals that might indicate goal completion
+  const detectCompletionSignals = () => {
+    const signals: string[] = [];
+
+    // Check for cart count/badge in affordances
+    const cartAff = o.affordances.find(a =>
+      a.description?.toLowerCase().includes('cart') &&
+      !a.description?.toLowerCase().includes('add to cart')
+    );
+    if (cartAff && /\d+/.test(cartAff.description || "")) {
+      const count = parseInt((cartAff.description?.match(/(\d+)/)?.[1] || "0"), 10);
+      if (count > 0) {
+        signals.push(`Cart shows ${count} item(s)`);
+      }
+    }
+
+    // Check for success/confirmation in page title
+    if (o.title.toLowerCase().includes("success") ||
+        o.title.toLowerCase().includes("confirm") ||
+        o.title.toLowerCase().includes("thank")) {
+      signals.push(`Success/confirmation page: "${o.title}"`);
+    }
+
+    return signals;
+  };
+
+  const completionSignals = detectCompletionSignals();
+  const completionSignalsText = completionSignals.length > 0
+    ? `\nObservable Completion Signals:\n${completionSignals.map(s => `  • ${s}`).join("\n")}\n`
+    : '';
+
   const promptContent = `Goal: ${goal}
 Plan: ${P.subgoals.map(s => s.text).join(" / ")}
 Observation: ${o.title} @ ${o.url}
+${completionSignalsText}
 
 ${recentActionsText}Observed input state:
 ${fs.filledInputs.length > 0 ? `ALREADY FILLED:\n${fs.filledInputs}` : 'No inputs filled yet'}
@@ -568,17 +611,48 @@ ${candBlock}
 Lookahead (cognitive map):
 ${laBlock}
 
-CRITICAL: Down-rank candidates that try to re-fill inputs shown as "ALREADY FILLED".
-When Required inputs still empty = 0, prefer candidates that advance the flow (e.g., clicking Next/Submit buttons).
-For DATETIME-LOCAL: If a 'Show local date and time picker' button is visible and the datetime-local field is empty, prefer clicking it ONCE and then setting segments. Down-rank repeated clicks on the picker; if it remains visible after the first click, proceed to set the segments. Use ISO fill only if neither picker nor segments are available.
-Score each in [-1,1] and pick best index as 'chosenIndex'.
+CRITICAL EVALUATION RULES:
+1. Down-rank candidates that try to re-fill inputs shown as "ALREADY FILLED".
+2. Down-rank candidates that REPEAT actions from Recent Actions (e.g., if "added to cart" already in Recent Actions, down-rank another "add to cart" action).
+3. When Required inputs still empty = 0, prefer candidates that advance the flow (e.g., clicking Next/Submit buttons).
+4. For DATETIME-LOCAL: If a 'Show local date and time picker' button is visible and the datetime-local field is empty, prefer clicking it ONCE and then setting segments. Down-rank repeated clicks on the picker; if it remains visible after the first click, proceed to set the segments. Use ISO fill only if neither picker nor segments are available.
 
-GOAL COMPLETION EVALUATION:
-After scoring, evaluate if the goal is fully achieved:
-- Check if all plan subgoals are satisfied based on the current observation
-- Look for success indicators: success/completion messages, confirmation pages, redirects to expected final states
-- Set goalMet=true ONLY if the goal is verifiably complete (not just "no next action")
-- If goalMet=true, provide goalMetReason explaining what confirms completion`;
+Score each candidate in [-1,1] and pick best index as 'chosenIndex'.
+
+GOAL COMPLETION EVALUATION (CRITICAL):
+After scoring, evaluate if the goal is fully achieved by checking ALL THREE:
+A. Recent Actions (working memory) - Has the goal been accomplished?
+   - Goal: "add 1 item to cart" + Recent Actions shows "→ added to cart" = goalMet=true
+   - Goal: "fill form with X" + Recent Actions shows all fields filled = goalMet=true
+
+B. Observable Completion Signals - What changed in the UI?
+   - Cart badge/count increased (e.g., "Cart shows 1 item(s)")
+   - Success/confirmation page appeared
+   - Expected affordances appeared/disappeared
+
+C. Current observation - Are there final state indicators?
+   - Success/completion messages visible
+   - Confirmation pages shown
+   - Redirects to expected final states
+
+Set goalMet=true WHEN:
+- Recent Actions show the goal's objective was completed (e.g., "added to cart", "submitted form")
+- AND/OR Observable Completion Signals confirm it (e.g., "Cart shows 1 item(s)")
+- AND/OR Current observation shows success page
+
+IMPORTANT EXAMPLES:
+- Goal: "add 1 item to cart" + Recent Actions: "→ added to cart" + Signals: "Cart shows 1 item(s)" = goalMet=true
+- Goal: "add 1 item to cart" + Signals: "Cart shows 1 item(s)" (even without Recent Actions showing it) = goalMet=true
+
+Set goalMet=false WHEN:
+- Recent Actions do NOT show completion
+- AND Observable Completion Signals do NOT confirm completion
+- AND no success/confirmation page visible
+
+If goalMet=true, provide goalMetReason that REFERENCES:
+1. Which Recent Actions confirm completion
+2. What Observable Completion Signals were detected
+3. Any success page indicators`;
 
   // Log the full prompt for debugging LLM reasoning
   logDebug("Critic agent prompt", { prompt: promptContent });

@@ -90,6 +90,11 @@ export function Sidebar({ runState }: SidebarProps) {
             >
               {runState.status}
             </span>
+            {runState.status === "completed" && runState.endedReason && (
+              <span style={{ color: "#888", fontSize: "10px", marginLeft: "8px" }}>
+                ({runState.endedReason.replace(/_/g, " ")})
+              </span>
+            )}
           </div>
           <div style={{ marginBottom: "8px" }}>
             <span style={{ color: "#888" }}>step:</span>{" "}

@@ -109,6 +109,29 @@ export function Timeline({ steps, currentStep }: TimelineProps) {
                 {/* Input State (Working Memory) */}
                 {step.inputState && (
                   <Section title="Working Memory">
+                    {/* Recent Actions - Show prominently at the top */}
+                    {step.inputState.recentActions && step.inputState.recentActions.length > 0 && (
+                      <div style={{ marginBottom: "12px", padding: "8px", backgroundColor: "#1a1a1a", border: "1px solid #444" }}>
+                        <div style={{ fontSize: "11px", marginBottom: "6px", color: "#ffb000", fontWeight: "bold" }}>
+                          Recent Actions (last {step.inputState.recentActions.length}):
+                        </div>
+                        <div style={{ fontSize: "10px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                          {step.inputState.recentActions.map((ra: any, i: number) => (
+                            <div key={i} style={{ display: "flex", gap: "6px", alignItems: "flex-start" }}>
+                              <span style={{ color: "#888", minWidth: "50px" }}>Step {ra.step}:</span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ color: "#00ff00" }}>{ra.action.description}</div>
+                                <div style={{ color: "#ffb000", fontStyle: "italic", marginTop: "2px" }}>
+                                  → {ra.outcome}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Form State Summary */}
                     <div style={{ fontSize: "11px", marginBottom: "6px" }}>
                       <span style={{ color: "#888" }}>required fields empty:</span>{" "}
                       <span style={{ color: "#ffb000" }}>{step.inputState.requiredEmpty}</span>

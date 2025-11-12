@@ -74,6 +74,7 @@ export type Transition = {
     filledInputs: string;
     emptyInputs: string;
     requiredEmpty: number;
+    recentActions: RecentAction[];  // Working memory: recent actions with outcomes
   };
 
   export type AtlasEvent =
