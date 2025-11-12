@@ -6,9 +6,10 @@ import type { StepData } from "../types";
 type TimelineProps = {
   steps: StepData[];
   currentStep: number;
+  status?: "idle" | "running" | "completed" | "error";
 };
 
-export function Timeline({ steps, currentStep }: TimelineProps) {
+export function Timeline({ steps, currentStep, status }: TimelineProps) {
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
   const currentStepRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +49,8 @@ export function Timeline({ steps, currentStep }: TimelineProps) {
       {steps.map((step) => {
         const isExpanded = expandedStep === step.step;
         const isCurrent = step.step === currentStep;
+        const isLastStep = step.step === Math.max(...steps.map(s => s.step));
+        const isCompleted = isLastStep && status === "completed";
 
         return (
           <div
@@ -56,7 +59,7 @@ export function Timeline({ steps, currentStep }: TimelineProps) {
             style={{
               marginBottom: "1px",
               border: "1px solid #333",
-              backgroundColor: isCurrent ? "#1a1a1a" : "#0a0a0a",
+              backgroundColor: isCompleted ? "#0a2a0a" : isCurrent ? "#1a1a1a" : "#0a0a0a",
             }}
           >
             <div
@@ -74,10 +77,15 @@ export function Timeline({ steps, currentStep }: TimelineProps) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ color: "#888" }}>{isExpanded ? "▼" : "▶"}</span>
-                <span style={{ color: isCurrent ? "#ffb000" : "#00ff00", fontWeight: "bold" }}>
+                <span style={{ color: isCompleted ? "#00ff00" : isCurrent ? "#ffb000" : "#00ff00", fontWeight: "bold" }}>
                   Step {step.step}
                 </span>
-                {isCurrent && (
+                {isCompleted && (
+                  <span style={{ color: "#00ff00", fontSize: "10px" }}>
+                    [COMPLETED ✓]
+                  </span>
+                )}
+                {isCurrent && !isCompleted && (
                   <span style={{ color: "#ffb000", fontSize: "10px" }}>
                     [ACTIVE]
                   </span>

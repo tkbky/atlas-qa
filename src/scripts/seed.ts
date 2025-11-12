@@ -1,10 +1,11 @@
-import type { Observation } from "./types.js";
-import { WebEnv } from "./browser.js";
-import { CognitiveMap } from "./cognitiveMap.js";
+import type { Observation } from "../core/types.js";
+import { WebEnv } from "../browser/index.js";
+import { CognitiveMap } from "../core/cognitive-map.js";
+import { memory } from "../agents/index.js";
 
 export async function seedCognitiveMap(startUrl: string, steps = 5) {
   const web = new WebEnv();
-  const M = new CognitiveMap();
+  const M = new CognitiveMap(memory);
   await web.init("LOCAL");
   await web.goto(startUrl);
 

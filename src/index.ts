@@ -1,16 +1,46 @@
-import { runAtlas } from "./atlas.js";
+// Core ATLAS exports
+export { runAtlas, type AtlasOptions, type AtlasRunArtifacts, type AtlasStepArtifact } from "./core/atlas.js";
+export { CognitiveMap } from "./core/cognitive-map.js";
 
-async function main() {
-  const goal =
-    "1. Login using email: gaurav@yopmail.com, password: Welcome@1. 2. Navigate to the lead management dashboard (either by clicking Marketing > Lead Management in the left menu, or by going directly to https://dev.mbodev.me/app/lead-management). 3. Explore and test filtering leads by different date ranges. Try various date range filters and verify how the leads are filtered based on the selected date ranges."
-  await runAtlas(goal, "https://dev.mbodev.me/classic/ws?studioid=-1002002&launch=true", {
-    env: "LOCAL",
-    maxSteps: 10,
-    beamSize: 3,
-  });
-}
+// Type exports
+export type {
+  Affordance,
+  Observation,
+  Plan,
+  Candidate,
+  Critique,
+  Transition,
+  FormFieldInfo,
+  FormFieldOption,
+  RecentAction,
+  InputState,
+  AtlasEvent,
+  AtlasEventCallback,
+} from "./core/types.js";
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+// Browser exports
+export { WebEnv } from "./browser/index.js";
+
+// Agent exports
+export { plan, propose, critique, isFormControl, getMethodForElement, memory, mastra } from "./agents/index.js";
+
+// Memory exports
+export { AtlasMemory, type SemanticRule } from "./memory/index.js";
+
+// Strategy exports
+export { applyTemporalInput } from "./strategies/index.js";
+
+// Utility exports
+export {
+  initRunLogger,
+  getRunLogger,
+  logInfo,
+  logDebug,
+  logWarn,
+  logError,
+  shutdownLogger,
+  type RunLoggerHandle,
+} from "./utils/logger.js";
+
+// Script exports
+export { seedCognitiveMap } from "./scripts/seed.js";

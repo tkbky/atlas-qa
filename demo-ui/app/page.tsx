@@ -328,7 +328,7 @@ export default function Home() {
             overflowY: "auto",
           }}
         >
-          <Timeline steps={runState.steps} currentStep={runState.currentStep} />
+          <Timeline steps={runState.steps} currentStep={runState.currentStep} status={runState.status} />
         </div>
       </div>
     </div>

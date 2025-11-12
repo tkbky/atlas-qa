@@ -1,9 +1,10 @@
-import { CognitiveMap } from "../src/cognitiveMap.js";
-import type { Observation, Affordance } from "../src/types.js";
+import { CognitiveMap } from "../src/core/cognitive-map.js";
+import type { Observation, Affordance } from "../src/core/types.js";
+import { memory } from "../src/agents/index.js";
 
 describe("CognitiveMap", () => {
   it("records and looks up transitions", () => {
-    const M = new CognitiveMap();
+    const M = new CognitiveMap(memory);
     const o: Observation = { url: "https://a", title: "A", affordances: [] };
     const a: Affordance = { description: "click next", selector: "/html/x", method: "click" };
     const o2: Observation = { url: "https://b", title: "B", affordances: [] };

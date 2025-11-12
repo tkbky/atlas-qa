@@ -9,7 +9,8 @@ mastra-vectors.db
 mastra-vectors.db-shm
 mastra-vectors.db-wal
 
-# Demo UI
 demo-ui/.next
 demo-ui/out
 demo-ui/node_modules
+
+.mastra

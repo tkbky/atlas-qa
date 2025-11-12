@@ -1,4 +1,4 @@
-import type { Observation, Affordance } from "../types.js";
+import type { Observation, Affordance } from "../core/types.js";
 import type { Memory } from "@mastra/memory";
 
 /**

@@ -58,6 +58,10 @@ export type Transition = {
   actionKey: string;
   to: Observation;
   delta?: string;
+  uncertainty?: number;  // U(s,a): 0..1, where 0 = fully confident, 1 = completely uncertain
+  visits?: number;        // Number of times this transition has been observed
+  firstSeenAt?: number;   // Timestamp when first recorded
+  lastSeenAt?: number;    // Timestamp when last observed
 };
 
   // --- Recent action tracking for working memory ---

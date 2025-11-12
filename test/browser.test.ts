@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WebEnv } from "../src/browser.js";
+import { WebEnv } from "../src/browser/index.js";
 
 vi.setConfig({ testTimeout: 30000 });
 

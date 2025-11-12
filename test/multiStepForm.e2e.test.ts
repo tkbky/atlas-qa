@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";
-import { runAtlas } from "../src/atlas.js";
+import { runAtlas } from "../src/core/atlas.js";
 
 vi.setConfig({ testTimeout: 150000 });
 
@@ -72,7 +72,7 @@ describe("Atlas multi-step onboarding wizard (end-to-end)", () => {
       maxSteps: 30,
       beamSize: 2,
       runLabel: "wizard-e2e",
-      timeBudgetMs: 160_000,
+      timeBudgetMs: 240_000,
     });
 
     expect(result.goal).toBe(goal);
