@@ -22,7 +22,10 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
     if (currentStep >= 0) {
       setExpandedStep(currentStep);
       setTimeout(() => {
-        currentStepRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        currentStepRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
       }, 100);
     }
   }, [currentStep]);
@@ -49,7 +52,7 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
       {steps.map((step) => {
         const isExpanded = expandedStep === step.step;
         const isCurrent = step.step === currentStep;
-        const isLastStep = step.step === Math.max(...steps.map(s => s.step));
+        const isLastStep = step.step === Math.max(...steps.map((s) => s.step));
         const isCompleted = isLastStep && status === "completed";
 
         return (
@@ -59,7 +62,11 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
             style={{
               marginBottom: "1px",
               border: "1px solid #333",
-              backgroundColor: isCompleted ? "#0a2a0a" : isCurrent ? "#1a1a1a" : "#0a0a0a",
+              backgroundColor: isCompleted
+                ? "#0a2a0a"
+                : isCurrent
+                  ? "#1a1a1a"
+                  : "#0a0a0a",
             }}
           >
             <div
@@ -75,9 +82,20 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                 userSelect: "none",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
                 <span style={{ color: "#888" }}>{isExpanded ? "▼" : "▶"}</span>
-                <span style={{ color: isCompleted ? "#00ff00" : isCurrent ? "#ffb000" : "#00ff00", fontWeight: "bold" }}>
+                <span
+                  style={{
+                    color: isCompleted
+                      ? "#00ff00"
+                      : isCurrent
+                        ? "#ffb000"
+                        : "#00ff00",
+                    fontWeight: "bold",
+                  }}
+                >
                   Step {step.step}
                 </span>
                 {isCompleted && (
@@ -91,7 +109,13 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                   </span>
                 )}
                 {step.selectedAction && (
-                  <span style={{ color: "#888", fontSize: "11px", fontStyle: "italic" }}>
+                  <span
+                    style={{
+                      color: "#888",
+                      fontSize: "11px",
+                      fontStyle: "italic",
+                    }}
+                  >
                     {step.selectedAction.description.substring(0, 60)}
                     {step.selectedAction.description.length > 60 ? "..." : ""}
                   </span>
@@ -104,10 +128,20 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                 {/* Plan */}
                 {step.plan && (
                   <Section title="Plan">
-                    <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "11px" }}>
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: "20px",
+                        fontSize: "11px",
+                      }}
+                    >
                       {step.plan.subgoals.map((sg: any) => (
-                        <li key={sg.id} style={{ marginBottom: "6px", color: "#888" }}>
-                          <span style={{ color: "#ffb000" }}>{sg.text}</span> - {sg.successPredicate}
+                        <li
+                          key={sg.id}
+                          style={{ marginBottom: "6px", color: "#888" }}
+                        >
+                          <span style={{ color: "#ffb000" }}>{sg.text}</span> -{" "}
+                          {sg.successPredicate}
                         </li>
                       ))}
                     </ul>
@@ -118,77 +152,159 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                 {step.inputState && (
                   <Section title="Working Memory">
                     {/* Recent Actions - Show prominently at the top */}
-                    {step.inputState.recentActions && step.inputState.recentActions.length > 0 && (
-                      <div style={{ marginBottom: "12px", padding: "8px", backgroundColor: "#1a1a1a", border: "1px solid #444" }}>
-                        <div style={{ fontSize: "11px", marginBottom: "6px", color: "#ffb000", fontWeight: "bold" }}>
-                          Recent Actions (last {step.inputState.recentActions.length}):
-                        </div>
-                        <div style={{ fontSize: "10px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                          {step.inputState.recentActions.map((ra: any, i: number) => (
-                            <div key={i} style={{ display: "flex", gap: "6px", alignItems: "flex-start" }}>
-                              <span style={{ color: "#888", minWidth: "50px" }}>Step {ra.step}:</span>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ color: "#00ff00" }}>{ra.action.description}</div>
-                                <div style={{ color: "#ffb000", fontStyle: "italic", marginTop: "2px" }}>
-                                  → {ra.outcome}
+                    {step.inputState.recentActions &&
+                      step.inputState.recentActions.length > 0 && (
+                        <div
+                          style={{
+                            marginBottom: "12px",
+                            padding: "8px",
+                            backgroundColor: "#1a1a1a",
+                            border: "1px solid #444",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              marginBottom: "6px",
+                              color: "#ffb000",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            Recent Actions (last{" "}
+                            {step.inputState.recentActions.length}):
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "4px",
+                            }}
+                          >
+                            {step.inputState.recentActions.map(
+                              (ra: any, i: number) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    display: "flex",
+                                    gap: "6px",
+                                    alignItems: "flex-start",
+                                  }}
+                                >
+                                  <span
+                                    style={{ color: "#888", minWidth: "50px" }}
+                                  >
+                                    Step {ra.step}:
+                                  </span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ color: "#00ff00" }}>
+                                      {ra.action.description}
+                                    </div>
+                                    <div
+                                      style={{
+                                        color: "#ffb000",
+                                        fontStyle: "italic",
+                                        marginTop: "2px",
+                                      }}
+                                    >
+                                      → {ra.outcome}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          ))}
+                              )
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Form State Summary */}
                     <div style={{ fontSize: "11px", marginBottom: "6px" }}>
-                      <span style={{ color: "#888" }}>required fields empty:</span>{" "}
-                      <span style={{ color: "#ffb000" }}>{step.inputState.requiredEmpty}</span>
+                      <span style={{ color: "#888" }}>
+                        required fields empty:
+                      </span>{" "}
+                      <span style={{ color: "#ffb000" }}>
+                        {step.inputState.requiredEmpty}
+                      </span>
                     </div>
-                    {step.inputState.filledInputs !== undefined && step.inputState.filledInputs.length > 0 && (
-                      <details style={{ marginTop: "8px" }}>
-                        <summary style={{ cursor: "pointer", color: "#888", fontSize: "11px" }}>
-                          filled inputs ({step.inputState.filledInputs.split('\n').filter(l => l.trim()).length})
-                        </summary>
-                        <pre
+                    {step.inputState.filledInputs !== undefined &&
+                      step.inputState.filledInputs.length > 0 && (
+                        <details style={{ marginTop: "8px" }}>
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              color: "#888",
+                              fontSize: "11px",
+                            }}
+                          >
+                            filled inputs (
+                            {
+                              step.inputState.filledInputs
+                                .split("\n")
+                                .filter((l: string) => l.trim()).length
+                            }
+                            )
+                          </summary>
+                          <pre
+                            style={{
+                              fontSize: "10px",
+                              overflow: "auto",
+                              backgroundColor: "#000",
+                              padding: "8px",
+                              border: "1px solid #333",
+                              color: "#00ff00",
+                              marginTop: "6px",
+                            }}
+                          >
+                            {step.inputState.filledInputs}
+                          </pre>
+                        </details>
+                      )}
+                    {step.inputState.filledInputs !== undefined &&
+                      step.inputState.filledInputs.length === 0 && (
+                        <div
                           style={{
-                            fontSize: "10px",
-                            overflow: "auto",
-                            backgroundColor: "#000",
-                            padding: "8px",
-                            border: "1px solid #333",
-                            color: "#00ff00",
-                            marginTop: "6px",
+                            marginTop: "8px",
+                            fontSize: "11px",
+                            color: "#555",
+                            fontStyle: "italic",
                           }}
                         >
-                          {step.inputState.filledInputs}
-                        </pre>
-                      </details>
-                    )}
-                    {step.inputState.filledInputs !== undefined && step.inputState.filledInputs.length === 0 && (
-                      <div style={{ marginTop: "8px", fontSize: "11px", color: "#555", fontStyle: "italic" }}>
-                        No inputs filled yet
-                      </div>
-                    )}
-                    {step.inputState.emptyInputs !== undefined && step.inputState.emptyInputs.length > 0 && (
-                      <details style={{ marginTop: "8px" }}>
-                        <summary style={{ cursor: "pointer", color: "#888", fontSize: "11px" }}>
-                          empty inputs ({step.inputState.emptyInputs.split('\n').filter(l => l.trim()).length})
-                        </summary>
-                        <pre
-                          style={{
-                            fontSize: "10px",
-                            overflow: "auto",
-                            backgroundColor: "#000",
-                            padding: "8px",
-                            border: "1px solid #333",
-                            color: "#00ff00",
-                            marginTop: "6px",
-                          }}
-                        >
-                          {step.inputState.emptyInputs}
-                        </pre>
-                      </details>
-                    )}
+                          No inputs filled yet
+                        </div>
+                      )}
+                    {step.inputState.emptyInputs !== undefined &&
+                      step.inputState.emptyInputs.length > 0 && (
+                        <details style={{ marginTop: "8px" }}>
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              color: "#888",
+                              fontSize: "11px",
+                            }}
+                          >
+                            empty inputs (
+                            {
+                              step.inputState.emptyInputs
+                                .split("\n")
+                                .filter((l: string) => l.trim()).length
+                            }
+                            )
+                          </summary>
+                          <pre
+                            style={{
+                              fontSize: "10px",
+                              overflow: "auto",
+                              backgroundColor: "#000",
+                              padding: "8px",
+                              border: "1px solid #333",
+                              color: "#00ff00",
+                              marginTop: "6px",
+                            }}
+                          >
+                            {step.inputState.emptyInputs}
+                          </pre>
+                        </details>
+                      )}
                   </Section>
                 )}
 
@@ -205,19 +321,44 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                             backgroundColor: "#000",
                           }}
                         >
-                          <div style={{ color: "#ffb000", marginBottom: "4px", fontSize: "11px" }}>
+                          <div
+                            style={{
+                              color: "#ffb000",
+                              marginBottom: "4px",
+                              fontSize: "11px",
+                            }}
+                          >
                             candidate #{i}
                           </div>
-                          <div style={{ fontSize: "11px", marginBottom: "4px", color: "#888" }}>
-                            <span style={{ fontStyle: "italic" }}>rationale:</span>{" "}
-                            <span style={{ color: "#00ff00" }}>{c.rationale}</span>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              marginBottom: "4px",
+                              color: "#888",
+                            }}
+                          >
+                            <span style={{ fontStyle: "italic" }}>
+                              rationale:
+                            </span>{" "}
+                            <span style={{ color: "#00ff00" }}>
+                              {c.rationale}
+                            </span>
                           </div>
-                          <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#888",
+                              marginBottom: "4px",
+                            }}
+                          >
                             <span style={{ fontStyle: "italic" }}>action:</span>{" "}
-                            <span style={{ color: "#00ff00" }}>{c.action.description}</span>
+                            <span style={{ color: "#00ff00" }}>
+                              {c.action.description}
+                            </span>
                           </div>
                           <div style={{ fontSize: "10px", color: "#555" }}>
-                            method: {c.action.method || "N/A"} | selector: {c.action.selector || "N/A"}
+                            method: {c.action.method || "N/A"} | selector:{" "}
+                            {c.action.selector || "N/A"}
                           </div>
                         </div>
                       ))}
@@ -229,45 +370,95 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                 {step.critique && (
                   <Section title="Critic - Evaluation">
                     <div style={{ marginBottom: "8px", fontSize: "11px" }}>
-                      <span style={{ color: "#888", fontStyle: "italic" }}>chosen:</span>{" "}
+                      <span style={{ color: "#888", fontStyle: "italic" }}>
+                        chosen:
+                      </span>{" "}
                       <span style={{ color: "#ffb000", fontWeight: "bold" }}>
                         candidate #{step.critique.chosenIndex}
                       </span>
                     </div>
-                    {step.critique.ranked && step.critique.ranked.length > 0 && (
-                      <div>
-                        <div style={{ color: "#888", fontSize: "11px", marginBottom: "4px" }}>
-                          rankings:
+                    {step.critique.ranked &&
+                      step.critique.ranked.length > 0 && (
+                        <div>
+                          <div
+                            style={{
+                              color: "#888",
+                              fontSize: "11px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            rankings:
+                          </div>
+                          <ul
+                            style={{
+                              margin: "5px 0",
+                              paddingLeft: "20px",
+                              fontSize: "11px",
+                            }}
+                          >
+                            {step.critique.ranked.map((r: any, i: number) => (
+                              <li
+                                key={i}
+                                style={{ marginBottom: "4px", color: "#888" }}
+                              >
+                                <span style={{ color: "#ffb000" }}>
+                                  #{r.index}
+                                </span>{" "}
+                                - value:{" "}
+                                <span style={{ color: "#00ff00" }}>
+                                  {r.value.toFixed(2)}
+                                </span>{" "}
+                                - {r.reason}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <ul style={{ margin: "5px 0", paddingLeft: "20px", fontSize: "11px" }}>
-                          {step.critique.ranked.map((r: any, i: number) => (
-                            <li key={i} style={{ marginBottom: "4px", color: "#888" }}>
-                              <span style={{ color: "#ffb000" }}>#{r.index}</span> - value:{" "}
-                              <span style={{ color: "#00ff00" }}>{r.value.toFixed(2)}</span> - {r.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      )}
                   </Section>
                 )}
 
                 {/* Selected Action */}
                 {step.selectedAction && (
                   <Section title="Selected Action">
-                    <div style={{ padding: "8px", backgroundColor: "#1a1a1a", border: "1px solid #333" }}>
-                      <div style={{ color: "#00ff00", fontWeight: "bold", fontSize: "11px" }}>
+                    <div
+                      style={{
+                        padding: "8px",
+                        backgroundColor: "#1a1a1a",
+                        border: "1px solid #333",
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: "#00ff00",
+                          fontWeight: "bold",
+                          fontSize: "11px",
+                        }}
+                      >
                         {step.selectedAction.description}
                       </div>
-                      <div style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "#888",
+                          marginTop: "4px",
+                        }}
+                      >
                         method: {step.selectedAction.method} | selector:{" "}
                         {step.selectedAction.selector || "N/A"}
                       </div>
-                      {step.selectedAction.arguments && step.selectedAction.arguments.length > 0 && (
-                        <div style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}>
-                          args: {JSON.stringify(step.selectedAction.arguments)}
-                        </div>
-                      )}
+                      {step.selectedAction.arguments &&
+                        step.selectedAction.arguments.length > 0 && (
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              color: "#888",
+                              marginTop: "4px",
+                            }}
+                          >
+                            args:{" "}
+                            {JSON.stringify(step.selectedAction.arguments)}
+                          </div>
+                        )}
                     </div>
                   </Section>
                 )}
@@ -275,9 +466,21 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                 {/* Observation Changes */}
                 {step.observationBefore && step.observationAfter && (
                   <Section title="Observation">
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "10px",
+                      }}
+                    >
                       <div>
-                        <div style={{ color: "#888", fontSize: "11px", marginBottom: "4px" }}>
+                        <div
+                          style={{
+                            color: "#888",
+                            fontSize: "11px",
+                            marginBottom: "4px",
+                          }}
+                        >
                           before:
                         </div>
                         <div style={{ fontSize: "10px", marginTop: "4px" }}>
@@ -288,7 +491,10 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                             </span>
                           </div>
                           <div style={{ color: "#888" }}>
-                            title: <span style={{ color: "#00ff00" }}>{step.observationBefore.title}</span>
+                            title:{" "}
+                            <span style={{ color: "#00ff00" }}>
+                              {step.observationBefore.title}
+                            </span>
                           </div>
                           <div style={{ color: "#888" }}>
                             affordances:{" "}
@@ -299,7 +505,13 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                         </div>
                       </div>
                       <div>
-                        <div style={{ color: "#888", fontSize: "11px", marginBottom: "4px" }}>
+                        <div
+                          style={{
+                            color: "#888",
+                            fontSize: "11px",
+                            marginBottom: "4px",
+                          }}
+                        >
                           after:
                         </div>
                         <div style={{ fontSize: "10px", marginTop: "4px" }}>
@@ -310,11 +522,16 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                             </span>
                           </div>
                           <div style={{ color: "#888" }}>
-                            title: <span style={{ color: "#00ff00" }}>{step.observationAfter.title}</span>
+                            title:{" "}
+                            <span style={{ color: "#00ff00" }}>
+                              {step.observationAfter.title}
+                            </span>
                           </div>
                           <div style={{ color: "#888" }}>
                             affordances:{" "}
-                            <span style={{ color: "#00ff00" }}>{step.observationAfter.affordances.length}</span>
+                            <span style={{ color: "#00ff00" }}>
+                              {step.observationAfter.affordances.length}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -327,22 +544,150 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                   <Section title="Cognitive Map Update">
                     <div style={{ fontSize: "10px" }}>
                       <div style={{ marginBottom: "4px" }}>
-                        <span style={{ color: "#888", fontStyle: "italic" }}>from:</span>{" "}
-                        <span style={{ color: "#00ff00" }}>{step.edge.fromKey}</span>
+                        <span style={{ color: "#888", fontStyle: "italic" }}>
+                          from:
+                        </span>{" "}
+                        <span style={{ color: "#00ff00" }}>
+                          {step.edge.fromKey}
+                        </span>
                       </div>
                       <div style={{ marginBottom: "4px" }}>
-                        <span style={{ color: "#888", fontStyle: "italic" }}>action:</span>{" "}
-                        <span style={{ color: "#ffb000" }}>{step.edge.actionKey}</span>
+                        <span style={{ color: "#888", fontStyle: "italic" }}>
+                          action:
+                        </span>{" "}
+                        <span style={{ color: "#ffb000" }}>
+                          {step.edge.actionKey}
+                        </span>
                       </div>
                       <div style={{ marginBottom: "4px" }}>
-                        <span style={{ color: "#888", fontStyle: "italic" }}>to:</span>{" "}
+                        <span style={{ color: "#888", fontStyle: "italic" }}>
+                          to:
+                        </span>{" "}
                         <span style={{ color: "#00ff00" }}>
                           {step.edge.to.url} - {step.edge.to.title}
                         </span>
                       </div>
                       {step.edge.delta && (
-                        <div style={{ marginTop: "6px", fontStyle: "italic", color: "#555" }}>
+                        <div
+                          style={{
+                            marginTop: "6px",
+                            fontStyle: "italic",
+                            color: "#555",
+                          }}
+                        >
                           {step.edge.delta}
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+                )}
+
+                {/* Flow Analysis */}
+                {step.flowAnalysis && (
+                  <Section title="Flow Analysis">
+                    <div style={{ fontSize: "11px" }}>
+                      <div style={{ marginBottom: "8px" }}>
+                        <span style={{ color: "#888", fontStyle: "italic" }}>
+                          state:
+                        </span>{" "}
+                        <span
+                          style={{
+                            color:
+                              step.flowAnalysis === "start"
+                                ? "#00ff00"
+                                : step.flowAnalysis === "end"
+                                  ? "#ff4444"
+                                  : "#ffb000",
+                            fontWeight: "bold",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {step.flowAnalysis.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      {step.flowAnalysis === "start" && (
+                        <div
+                          style={{
+                            color: "#00ff00",
+                            fontSize: "10px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          ✓ Flow boundary detected - this is the starting point
+                        </div>
+                      )}
+                      {step.flowAnalysis === "end" && (
+                        <div
+                          style={{
+                            color: "#ff4444",
+                            fontSize: "10px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          ✓ Flow boundary detected - this is the end point
+                        </div>
+                      )}
+                      {step.flowAnalysis === "intermediate" && (
+                        <div
+                          style={{
+                            color: "#ffb000",
+                            fontSize: "10px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          • Intermediate state - continuing exploration
+                        </div>
+                      )}
+                    </div>
+                  </Section>
+                )}
+
+                {/* Judge Decision */}
+                {step.judgeDecision && (
+                  <Section title="Judge Decision">
+                    <div style={{ fontSize: "11px" }}>
+                      <div style={{ marginBottom: "8px" }}>
+                        <span style={{ color: "#888", fontStyle: "italic" }}>
+                          verdict:
+                        </span>{" "}
+                        <span
+                          style={{
+                            color: step.judgeDecision.isCorrect
+                              ? "#00ff00"
+                              : "#ff4444",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {step.judgeDecision.isCorrect
+                            ? "✓ CORRECT"
+                            : "✗ INCORRECT"}
+                        </span>
+                      </div>
+                      {step.judgeDecision.explanation && (
+                        <div style={{ marginTop: "6px", fontSize: "10px" }}>
+                          <div style={{ color: "#888", marginBottom: "4px" }}>
+                            explanation:
+                          </div>
+                          <div
+                            style={{ color: "#ffb000", fontStyle: "italic" }}
+                          >
+                            {step.judgeDecision.explanation}
+                          </div>
+                        </div>
+                      )}
+                      {step.judgeDecision.correctState && (
+                        <div style={{ marginTop: "6px", fontSize: "10px" }}>
+                          <div style={{ color: "#888", marginBottom: "4px" }}>
+                            correct state:
+                          </div>
+                          <div
+                            style={{
+                              color: "#00ff00",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {step.judgeDecision.correctState.replace(/_/g, " ")}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -357,9 +702,21 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div style={{ marginBottom: "12px", paddingBottom: "12px", borderBottom: "1px solid #333" }}>
+    <div
+      style={{
+        marginBottom: "12px",
+        paddingBottom: "12px",
+        borderBottom: "1px solid #333",
+      }}
+    >
       <div
         style={{
           margin: "0 0 8px 0",

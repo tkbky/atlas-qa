@@ -1,5 +1,7 @@
 import type { Observation, Affordance } from "../core/types.js";
 import type { Agent } from "@mastra/core/agent";
+import type { AgentInvocationOptions } from "./invocation.js";
+import { withAgentInvocationOptions } from "./invocation.js";
 
 /**
  * Helper to identify form control elements.
@@ -44,12 +46,13 @@ export async function generateDelta(
   agent: Agent,
   before: Observation,
   action: Affordance,
-  after: Observation
+  after: Observation,
+  invocation?: AgentInvocationOptions
 ): Promise<string> {
   // Fast path for same URL and similar affordances
   if (before.url === after.url && before.title === after.title) {
-    const beforeAffs = before.affordances.map(a => a.description).join(", ");
-    const afterAffs = after.affordances.map(a => a.description).join(", ");
+    const beforeAffs = before.affordances.map((a) => a.description).join(", ");
+    const afterAffs = after.affordances.map((a) => a.description).join(", ");
     if (beforeAffs === afterAffs) {
       return `Same state after ${action.description}`;
     }
@@ -60,14 +63,20 @@ export async function generateDelta(
 **BEFORE state:**
 - URL: ${before.url}
 - Title: ${before.title}
-- Available actions (${before.affordances.length}): ${before.affordances.slice(0, 5).map(a => a.description).join(", ")}${before.affordances.length > 5 ? "..." : ""}
+- Available actions (${before.affordances.length}): ${before.affordances
+    .slice(0, 5)
+    .map((a) => a.description)
+    .join(", ")}${before.affordances.length > 5 ? "..." : ""}
 
 **ACTION taken:** ${action.description}
 
 **AFTER state:**
 - URL: ${after.url}
 - Title: ${after.title}
-- Available actions (${after.affordances.length}): ${after.affordances.slice(0, 5).map(a => a.description).join(", ")}${after.affordances.length > 5 ? "..." : ""}
+- Available actions (${after.affordances.length}): ${after.affordances
+    .slice(0, 5)
+    .map((a) => a.description)
+    .join(", ")}${after.affordances.length > 5 ? "..." : ""}
 
 Generate a CONCISE summary (1-2 sentences max) emphasizing:
 1. What changed (URL, title, page content)
@@ -78,9 +87,15 @@ Generate a CONCISE summary (1-2 sentences max) emphasizing:
 Be specific and action-oriented. This will help the agent predict future states.`;
 
   try {
-    const result = await agent.generate(prompt);
-    return result.text?.trim() || `${before.title} -> ${after.title} via ${action.description}`;
-  } catch (err) {
+    const result = await agent.generate(
+      prompt,
+      withAgentInvocationOptions({}, invocation)
+    );
+    return (
+      result.text?.trim() ||
+      `${before.title} -> ${after.title} via ${action.description}`
+    );
+  } catch {
     // Fallback to simple delta
     return `${before.title} -> ${after.title} via ${action.description}`;
   }

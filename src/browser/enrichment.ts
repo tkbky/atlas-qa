@@ -4,11 +4,13 @@ import { logWarn } from "../utils/logger.js";
 /**
  * Enrich affordances with field metadata (fieldInfo and currentValue)
  */
-export async function enrichAffordances(page: any, affordances: Affordance[]): Promise<Affordance[]> {
+export async function enrichAffordances(
+  page: any,
+  affordances: Affordance[]
+): Promise<Affordance[]> {
   return await Promise.all(
-    affordances.map(async affordance => {
+    affordances.map(async (affordance) => {
       const enriched: Affordance = { ...affordance };
-      const method = enriched.method?.toLowerCase();
 
       if (enriched.selector) {
         try {
@@ -36,8 +38,11 @@ export async function enrichAffordances(page: any, affordances: Affordance[]): P
 /**
  * Collect detailed field information from a form element
  */
-export async function collectFieldInfo(page: any, selector: string): Promise<FormFieldInfo | null> {
-  return await page.evaluate(rawSelector => {
+export async function collectFieldInfo(
+  page: any,
+  selector: string
+): Promise<FormFieldInfo | null> {
+  return await page.evaluate((rawSelector) => {
     let strategy: "xpath" | "css" = "xpath";
     let locator = rawSelector;
     if (rawSelector.startsWith("xpath=")) {
@@ -60,7 +65,7 @@ export async function collectFieldInfo(page: any, selector: string): Promise<For
       } else {
         element = document.querySelector(locator) as HTMLElement | null;
       }
-    } catch (err) {
+    } catch {
       return null;
     }
 
@@ -85,7 +90,7 @@ export async function collectFieldInfo(page: any, selector: string): Promise<For
         if (ariaLabelledBy) {
           const texts = ariaLabelledBy
             .split(" ")
-            .map(id => document.getElementById(id)?.textContent?.trim())
+            .map((id) => document.getElementById(id)?.textContent?.trim())
             .filter((value): value is string => Boolean(value));
           if (texts.length > 0) {
             return texts.join(" ").trim();
@@ -125,7 +130,7 @@ export async function collectFieldInfo(page: any, selector: string): Promise<For
         element instanceof HTMLInputElement ||
         element instanceof HTMLTextAreaElement ||
         element instanceof HTMLSelectElement
-          ? element.name ?? null
+          ? (element.name ?? null)
           : null,
       id: element.id || null,
       type: null,
@@ -152,7 +157,7 @@ export async function collectFieldInfo(page: any, selector: string): Promise<For
       base.type = "select";
       base.multiple = element.multiple;
       base.value = element.value ?? null;
-      base.options = Array.from(element.options).map(option => ({
+      base.options = Array.from(element.options).map((option) => ({
         value: option.value,
         label: option.text,
         selected: option.selected,

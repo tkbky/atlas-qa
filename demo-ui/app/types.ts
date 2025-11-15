@@ -9,7 +9,7 @@ import type {
   AtlasEvent,
   InputState,
   RecentAction,
-} from "@atlas-core/types.js";
+} from "@atlas-core/core/types.js";
 
 export type {
   Observation,
@@ -34,10 +34,18 @@ export type StepData = {
   observationAfter?: Observation;
   edge?: Transition;
   semanticRules?: string;
+  flowAnalysis?: "start" | "end" | "intermediate";
+  judgeDecision?: {
+    isCorrect: boolean;
+    explanation?: string;
+    correctState?: "start" | "end" | "intermediate";
+  };
+  generatedTest?: string;
 };
 
 export type RunState = {
   status: "idle" | "running" | "completed" | "error";
+  mode: "goal" | "flow-discovery";
   goal: string;
   startUrl: string;
   plan?: Plan;
@@ -47,4 +55,18 @@ export type RunState = {
   semanticRules: string;
   errorMessage?: string;
   endedReason?: string;
+  flowAnalysis?: {
+    currentState: "start" | "end" | "intermediate" | null;
+    judgeDecisions: Array<{
+      step: number;
+      analysis: "start" | "end" | "intermediate";
+      decision: {
+        isCorrect: boolean;
+        explanation?: string;
+        correctState?: "start" | "end" | "intermediate";
+      };
+      prompt: string;
+    }>;
+  };
+  generatedTest?: string;
 };

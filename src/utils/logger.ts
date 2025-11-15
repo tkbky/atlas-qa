@@ -77,7 +77,9 @@ export function initRunLogger({ logDir = "logs", runLabel }: InitOptions = {}) {
   const baseDir = path.resolve(process.cwd(), logDir);
   fs.mkdirSync(baseDir, { recursive: true });
 
-  const runId = runLabel ?? `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
+  const runId =
+    runLabel ??
+    `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
   const filePath = path.join(baseDir, `atlas-run-${runId}.log`);
 
   const logger = new RunLogger(filePath, runId);
@@ -93,10 +95,13 @@ export function getRunLogger() {
   return activeLogger;
 }
 
-export function withLogger<T>(level: LogLevel, message: string, context?: unknown) {
+export function withLogger(
+  level: LogLevel,
+  message: string,
+  context?: unknown
+) {
   if (!activeLogger) {
     // Fallback to console when logger is unavailable.
-    // eslint-disable-next-line no-console
     console.log(`[${level}] ${message}`, context ?? "");
     return;
   }

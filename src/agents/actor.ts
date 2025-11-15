@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { Agent } from "@mastra/core/agent";
 import type { Memory } from "@mastra/memory";
-import type { Observation, Plan, Candidate, AtlasEventCallback, InputState, RecentAction } from "../core/types.js";
+import type {
+  Observation,
+  Plan,
+  Candidate,
+  AtlasEventCallback,
+  InputState,
+  RecentAction,
+} from "../core/types.js";
+import type { AgentInvocationOptions } from "./invocation.js";
+import { withAgentInvocationOptions } from "./invocation.js";
 
 export function createActorAgent(memory: Memory): Agent {
   return new Agent({
@@ -42,27 +51,36 @@ const CandidatesSchema = z.object({
  * Simple helper to extract basic input state for debugging/UI display.
  * Just counts filled/empty inputs without complex preprocessing.
  */
-function getInputState(o: Observation, recentActions: RecentAction[]): InputState {
-  const inputs = o.affordances.filter(a => {
+function getInputState(
+  o: Observation,
+  recentActions: RecentAction[]
+): InputState {
+  const inputs = o.affordances.filter((a) => {
     const fi = (a as any).fieldInfo;
     return fi && ["input", "select", "textarea"].includes(fi.tagName);
   });
 
-  const filled = inputs.filter(a => {
+  const filled = inputs.filter((a) => {
     const val = (a as any).currentValue ?? (a as any).fieldInfo?.value ?? "";
     return String(val).length > 0;
   });
 
-  const empty = inputs.filter(a => {
+  const empty = inputs.filter((a) => {
     const val = (a as any).currentValue ?? (a as any).fieldInfo?.value ?? "";
     return String(val).length === 0;
   });
 
-  const requiredEmpty = empty.filter(a => (a as any).fieldInfo?.required).length;
+  const requiredEmpty = empty.filter(
+    (a) => (a as any).fieldInfo?.required
+  ).length;
 
   return {
-    filledInputs: filled.map(a => `• ${(a as any).description || "input"}`).join("\n"),
-    emptyInputs: empty.map(a => `• ${(a as any).description || "input"}`).join("\n"),
+    filledInputs: filled
+      .map((a) => `• ${(a as any).description || "input"}`)
+      .join("\n"),
+    emptyInputs: empty
+      .map((a) => `• ${(a as any).description || "input"}`)
+      .join("\n"),
     requiredEmpty,
     recentActions: recentActions.slice(-5),
   };
@@ -76,18 +94,20 @@ export async function propose(
   N = 3,
   step?: number,
   onEvent?: AtlasEventCallback,
-  recentActions: RecentAction[] = []
+  recentActions: RecentAction[] = [],
+  invocation?: AgentInvocationOptions
 ): Promise<Candidate[]> {
   const affordancesText = o.affordances
-    .map(a => `- ${(a as any).description || "element"}`)
+    .map((a) => `- ${(a as any).description || "element"}`)
     .join("\n");
 
-  const recentActionsText = recentActions.length > 0
-    ? recentActions
-        .slice(-5)
-        .map(ra => `${ra.step}. ${ra.action.description} → ${ra.outcome}`)
-        .join("\n")
-    : "None yet";
+  const recentActionsText =
+    recentActions.length > 0
+      ? recentActions
+          .slice(-5)
+          .map((ra) => `${ra.step}. ${ra.action.description} → ${ra.outcome}`)
+          .join("\n")
+      : "None yet";
 
   // Special handling when no affordances are available
   let specialGuidance = "";
@@ -105,7 +125,7 @@ For actions with no visible elements, use the instruction field (set selector an
   const prompt = `Goal: ${goal}
 
 Plan:
-${P.subgoals.map(s => `• ${s.text}`).join("\n")}
+${P.subgoals.map((s) => `• ${s.text}`).join("\n")}
 
 Current Page: ${o.title} @ ${o.url}
 
@@ -122,7 +142,10 @@ Propose ${N} next actions that make progress toward the goal. Avoid repeating re
       { role: "system", content: "Return JSON only." },
       { role: "user", content: prompt },
     ],
-    { structuredOutput: { schema: CandidatesSchema } }
+    withAgentInvocationOptions(
+      { structuredOutput: { schema: CandidatesSchema } },
+      invocation
+    )
   );
 
   const C = (res.object as { candidates: Candidate[] })?.candidates ?? [];

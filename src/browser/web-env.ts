@@ -42,13 +42,16 @@ export class WebEnv {
     );
     // Raw page text can help with planning/critique:
     const { pageText } = await this.sh.extract();
-    let affordances = await enrichAffordances(this.page, observed as Affordance[]);
+    const affordances = await enrichAffordances(
+      this.page,
+      observed as Affordance[]
+    );
 
     // Explicitly check for datetime-local inputs that might be missed by Stagehand
     const datetimeInputs = await detectDateTimeInputs(this.page);
     if (datetimeInputs.length > 0) {
       // Check if datetime inputs are already in affordances
-      const existingSelectors = new Set(affordances.map(a => a.selector));
+      const existingSelectors = new Set(affordances.map((a) => a.selector));
       for (const dtInput of datetimeInputs) {
         if (!existingSelectors.has(dtInput.selector)) {
           affordances.push(dtInput);
@@ -115,7 +118,7 @@ export class WebEnv {
         const errorMsg = error instanceof Error ? error.message : String(error);
         throw new Error(
           `Failed to execute instruction "${action.instruction}": ${errorMsg}. ` +
-          `Consider using specific selector+method actions instead of natural language instructions.`
+            `Consider using specific selector+method actions instead of natural language instructions.`
         );
       }
       return;
@@ -132,7 +135,43 @@ export class WebEnv {
       return;
     }
 
-    throw new Error("Invalid action: need either selector+method or instruction");
+    throw new Error(
+      "Invalid action: need either selector+method or instruction"
+    );
+  }
+
+  async captureFinalState(): Promise<any> {
+    const url = this.page.url();
+    const title = await this.page.title();
+    const { pageText } = await this.sh.extract();
+
+    // Capture a simplified representation of visible elements for assertions
+    const visibleElements = await this.page.evaluate(() => {
+      const elements = [];
+      for (const el of document.querySelectorAll("body *")) {
+        const style = window.getComputedStyle(el);
+        if (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          (el as HTMLElement).offsetParent !== null
+        ) {
+          elements.push({
+            tagName: el.tagName.toLowerCase(),
+            text: el.textContent?.trim().slice(0, 200),
+            id: el.id,
+            "data-testid": el.getAttribute("data-testid"),
+          });
+        }
+      }
+      return elements;
+    });
+
+    return {
+      url,
+      title,
+      pageText,
+      visibleElements,
+    };
   }
 
   async goBack() {

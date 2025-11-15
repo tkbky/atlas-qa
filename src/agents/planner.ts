@@ -3,6 +3,8 @@ import { Agent } from "@mastra/core/agent";
 import type { Memory } from "@mastra/memory";
 import type { Observation, Plan, AtlasEventCallback } from "../core/types.js";
 import { logInfo } from "../utils/logger.js";
+import type { AgentInvocationOptions } from "./invocation.js";
+import { withAgentInvocationOptions } from "./invocation.js";
 
 export function createPlannerAgent(memory: Memory): Agent {
   return new Agent({
@@ -32,15 +34,22 @@ export async function plan(
   agent: Agent,
   goal: string,
   o0: Observation,
-  onEvent?: AtlasEventCallback
+  onEvent?: AtlasEventCallback,
+  invocation?: AgentInvocationOptions
 ): Promise<Plan> {
   logInfo("Planner agent invoked", { goal, url: o0.url, title: o0.title });
   const res = await agent.generate(
     [
       { role: "system", content: "Return JSON only." },
-      { role: "user", content: `Goal: ${goal}\nStart: ${o0.url} | ${o0.title}` },
+      {
+        role: "user",
+        content: `Goal: ${goal}\nStart: ${o0.url} | ${o0.title}`,
+      },
     ],
-    { structuredOutput: { schema: PlanSchema } }
+    withAgentInvocationOptions(
+      { structuredOutput: { schema: PlanSchema } },
+      invocation
+    )
   );
   const planResult = (res.object as Plan) ?? { subgoals: [] };
   logInfo("Planner agent response received", { plan: planResult });

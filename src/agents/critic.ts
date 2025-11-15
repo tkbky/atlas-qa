@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { Agent } from "@mastra/core/agent";
 import type { Memory } from "@mastra/memory";
-import type { Observation, Plan, Candidate, Critique, AtlasEventCallback, RecentAction } from "../core/types.js";
+import type {
+  Observation,
+  Plan,
+  Candidate,
+  Critique,
+  AtlasEventCallback,
+  RecentAction,
+} from "../core/types.js";
+import type { AgentInvocationOptions } from "./invocation.js";
+import { withAgentInvocationOptions } from "./invocation.js";
 
 export function createCriticAgent(memory: Memory): Agent {
   return new Agent({
@@ -19,8 +28,16 @@ export function createCriticAgent(memory: Memory): Agent {
 }
 
 const CritiqueSchema = z.object({
-  goalMet: z.boolean().describe("True if all plan subgoals are satisfied and the goal is fully achieved"),
-  goalMetReason: z.string().describe("Explanation of why the goal is met if goalMet is true, or empty string if goalMet is false"),
+  goalMet: z
+    .boolean()
+    .describe(
+      "True if all plan subgoals are satisfied and the goal is fully achieved"
+    ),
+  goalMetReason: z
+    .string()
+    .describe(
+      "Explanation of why the goal is met if goalMet is true, or empty string if goalMet is false"
+    ),
   chosenIndex: z.number(),
   ranked: z.array(
     z.object({ index: z.number(), value: z.number(), reason: z.string() })
@@ -37,14 +54,16 @@ export async function critique(
   step?: number,
   onEvent?: AtlasEventCallback,
   recentActions: RecentAction[] = [],
-  uncertainties?: number[]
+  uncertainties?: number[],
+  invocation?: AgentInvocationOptions
 ): Promise<Critique> {
-  const recentActionsText = recentActions.length > 0
-    ? recentActions
-        .slice(-5)
-        .map(ra => `${ra.step}. ${ra.action.description} → ${ra.outcome}`)
-        .join("\n")
-    : "None yet";
+  const recentActionsText =
+    recentActions.length > 0
+      ? recentActions
+          .slice(-5)
+          .map((ra) => `${ra.step}. ${ra.action.description} → ${ra.outcome}`)
+          .join("\n")
+      : "None yet";
 
   const candidatesText = candidates
     .map((c, i) => `${i}. ${c.action.description}`)
@@ -60,7 +79,7 @@ export async function critique(
     .join("\n");
 
   const prompt = `Goal: ${goal}
-Plan: ${P.subgoals.map(s => s.text).join(" → ")}
+Plan: ${P.subgoals.map((s) => s.text).join(" → ")}
 
 Current Page: ${o.title} @ ${o.url}
 
@@ -89,7 +108,10 @@ Set goalMet=true if the goal is fully achieved based on recent actions and curre
       { role: "system", content: "Return JSON only." },
       { role: "user", content: prompt },
     ],
-    { structuredOutput: { schema: CritiqueSchema } }
+    withAgentInvocationOptions(
+      { structuredOutput: { schema: CritiqueSchema } },
+      invocation
+    )
   );
 
   const critique = (res.object as Critique) ?? {

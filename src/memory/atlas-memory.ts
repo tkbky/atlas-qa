@@ -30,7 +30,7 @@ export type SemanticRule = {
   source: "dom" | "server" | "critic";
   confidence?: number; // 0..1
   note?: string;
-  firstSeenAt?: string;  // URL
+  firstSeenAt?: string; // URL
 };
 
 const tid = () => `m:${Date.now()}:${Math.round(Math.random() * 1e9)}`;
@@ -39,54 +39,84 @@ export class AtlasMemory {
   constructor(private mem: Memory) {}
 
   private host(url: string): string {
-    try { return new URL(url).host; } catch { return "unknown"; }
+    try {
+      return new URL(url).host;
+    } catch {
+      return "unknown";
+    }
   }
-  private semThread(host: string) { return `semantic://${host}`; }
-  private mapThread(host: string) { return `cogmap://${host}`; }
+  private semThread(host: string) {
+    return `semantic://${host}`;
+  }
+  private mapThread(host: string) {
+    return `cogmap://${host}`;
+  }
 
   /** Ensure threads exist (idempotent). */
   async ensureDomainThreads(url: string) {
     const h = this.host(url);
     try {
-      await this.mem.createThread({
-        threadId: this.semThread(h),
-        resourceId: h,
-        title: `Semantic rules for ${h}`,
-        metadata: { layer: "semantic" },
-      }).catch(() => {});
-      await this.mem.createThread({
-        threadId: this.mapThread(h),
-        resourceId: h,
-        title: `Cognitive map for ${h}`,
-        metadata: { layer: "cogmap" },
-      }).catch(() => {});
-    } catch { /* best effort */ }
+      await this.mem
+        .createThread({
+          threadId: this.semThread(h),
+          resourceId: h,
+          title: `Semantic rules for ${h}`,
+          metadata: { layer: "semantic" },
+        })
+        .catch(() => {});
+      await this.mem
+        .createThread({
+          threadId: this.mapThread(h),
+          resourceId: h,
+          title: `Cognitive map for ${h}`,
+          metadata: { layer: "cogmap" },
+        })
+        .catch(() => {});
+    } catch {
+      /* best effort */
+    }
   }
 
   /** Persist a cognitive-map transition as a compact text + JSON. */
-  async recordTransition(from: Observation, a: Affordance, to: Observation, delta?: string) {
+  async recordTransition(
+    from: Observation,
+    a: Affordance,
+    to: Observation,
+    delta?: string
+  ) {
     const h = this.host(from.url);
     await this.ensureDomainThreads(from.url);
     const content = [
       `[COG_EDGE] ${from.title} (${from.url}) -- ${a.description} --> ${to.title} (${to.url})`,
       delta ? `Delta: ${delta}` : undefined,
       "```json",
-      JSON.stringify({ kind: "cog-edge", from: { url: from.url, title: from.title }, action: a, to: { url: to.url, title: to.title } }),
+      JSON.stringify({
+        kind: "cog-edge",
+        from: { url: from.url, title: from.title },
+        action: a,
+        to: { url: to.url, title: to.title },
+      }),
       "```",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     // NOTE: Mastra Memory exposes saveMessages in server runtime
-    await (this.mem as any).saveMessages?.({
-      messages: [{
-        id: tid(),
-        role: "system",
-        type: "text",
-        content,
-        threadId: this.mapThread(h),
-        createdAt: new Date(),
-      }],
-      resourceId: h,
-    }).catch(() => {});
+    await (this.mem as any)
+      .saveMessages?.({
+        messages: [
+          {
+            id: tid(),
+            role: "system",
+            type: "text",
+            content,
+            threadId: this.mapThread(h),
+            createdAt: new Date(),
+          },
+        ],
+        resourceId: h,
+      })
+      .catch(() => {});
   }
 
   /** Upsert (append) a semantic rule as text + JSON. */
@@ -99,19 +129,25 @@ export class AtlasMemory {
       "```json",
       JSON.stringify(rule),
       "```",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    await (this.mem as any).saveMessages?.({
-      messages: [{
-        id: rule.id || tid(),
-        role: "system",
-        type: "text",
-        content,
-        threadId: this.semThread(h),
-        createdAt: new Date(),
-      }],
-      resourceId: h,
-    }).catch(() => {});
+    await (this.mem as any)
+      .saveMessages?.({
+        messages: [
+          {
+            id: rule.id || tid(),
+            role: "system",
+            type: "text",
+            content,
+            threadId: this.semThread(h),
+            createdAt: new Date(),
+          },
+        ],
+        resourceId: h,
+      })
+      .catch(() => {});
   }
 
   /**
@@ -133,10 +169,41 @@ export class AtlasMemory {
       });
       const msgs: { content: string }[] = result?.messages ?? [];
       if (msgs.length === 0) return "";
-      const bullets = msgs.map((m) => `• ${m.content.replace(/```json[\s\S]*?```/g, "").trim().slice(0, 300)}`);
+      const bullets = msgs.map(
+        (m) =>
+          `• ${m.content
+            .replace(/```json[\s\S]*?```/g, "")
+            .trim()
+            .slice(0, 300)}`
+      );
       return `Known site constraints (from prior runs on ${h}):\n${bullets.join("\n")}`;
     } catch {
       return "";
     }
+  }
+
+  async recordJudgeDecision(
+    flowDescription: string,
+    url: string,
+    analysis: "start" | "end" | "intermediate",
+    decision: boolean
+  ) {
+    const h = this.host(url);
+    const key = `judge-veto:${flowDescription}:${h}:${analysis}`;
+    await (this.mem as any).set?.(key, String(decision));
+  }
+
+  async getJudgeDecision(
+    flowDescription: string,
+    url: string,
+    analysis: "start" | "end" | "intermediate"
+  ): Promise<boolean | null> {
+    const h = this.host(url);
+    const key = `judge-veto:${flowDescription}:${h}:${analysis}`;
+    const decision = await (this.mem as any).get?.(key);
+    if (decision) {
+      return decision === "true";
+    }
+    return null;
   }
 }

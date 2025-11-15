@@ -11,7 +11,11 @@ type CognitiveMapViewProps = {
 
 type ViewMode = "graph" | "details";
 
-export function CognitiveMapView({ edges, currentStep, mini = false }: CognitiveMapViewProps) {
+export function CognitiveMapView({
+  edges,
+  currentStep,
+  mini = false,
+}: CognitiveMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<any>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("graph");
@@ -83,14 +87,22 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
 
       // Build nodes and edges from transitions
       const nodeMap = new Map<string, { id: string; label: string }>();
-      const cyEdges: Array<{ id: string; source: string; target: string; label: string }> = [];
+      const cyEdges: Array<{
+        id: string;
+        source: string;
+        target: string;
+        label: string;
+      }> = [];
 
       edges.forEach((edge, idx) => {
         // Add source node
         if (!nodeMap.has(edge.fromKey)) {
           nodeMap.set(edge.fromKey, {
             id: edge.fromKey,
-            label: edge.fromKey.length > 30 ? edge.fromKey.substring(0, 27) + "..." : edge.fromKey,
+            label:
+              edge.fromKey.length > 30
+                ? edge.fromKey.substring(0, 27) + "..."
+                : edge.fromKey,
           });
         }
 
@@ -108,7 +120,10 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
           id: `edge-${idx}`,
           source: edge.fromKey,
           target: toKey,
-          label: edge.actionKey.length > 20 ? edge.actionKey.substring(0, 17) + "..." : edge.actionKey,
+          label:
+            edge.actionKey.length > 20
+              ? edge.actionKey.substring(0, 17) + "..."
+              : edge.actionKey,
         });
       });
 
@@ -213,7 +228,9 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
 
                 <div>
                   <span style={{ color: "#888" }}>To Title: </span>
-                  <span style={{ color: "#fff" }}>{edge.to.title || "(no title)"}</span>
+                  <span style={{ color: "#fff" }}>
+                    {edge.to.title || "(no title)"}
+                  </span>
                 </div>
 
                 {edge.delta && (
@@ -223,34 +240,54 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
                   </div>
                 )}
 
-                <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px solid #222" }}>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    paddingTop: "6px",
+                    borderTop: "1px solid #222",
+                  }}
+                >
                   <div>
                     <span style={{ color: "#888" }}>Uncertainty: </span>
-                    <span style={{ color: "#ff6b9d" }}>{edge.uncertainty?.toFixed(3) ?? "N/A"}</span>
+                    <span style={{ color: "#ff6b9d" }}>
+                      {(edge as any).uncertainty?.toFixed(3) ?? "N/A"}
+                    </span>
                   </div>
 
                   <div>
                     <span style={{ color: "#888" }}>Visits: </span>
-                    <span style={{ color: "#9b59b6" }}>{edge.visits ?? 1}</span>
+                    <span style={{ color: "#9b59b6" }}>
+                      {(edge as any).visits ?? 1}
+                    </span>
                   </div>
 
                   <div>
                     <span style={{ color: "#888" }}>First Seen: </span>
                     <span style={{ color: "#666" }}>
-                      {edge.firstSeenAt ? formatTimestamp(edge.firstSeenAt) : "N/A"}
+                      {(edge as any).firstSeenAt
+                        ? formatTimestamp((edge as any).firstSeenAt)
+                        : "N/A"}
                     </span>
                   </div>
 
                   <div>
                     <span style={{ color: "#888" }}>Last Seen: </span>
                     <span style={{ color: "#666" }}>
-                      {edge.lastSeenAt ? formatTimestamp(edge.lastSeenAt) : "N/A"}
+                      {(edge as any).lastSeenAt
+                        ? formatTimestamp((edge as any).lastSeenAt)
+                        : "N/A"}
                     </span>
                   </div>
                 </div>
 
                 {edge.to.affordances && edge.to.affordances.length > 0 && (
-                  <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px solid #222" }}>
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      paddingTop: "6px",
+                      borderTop: "1px solid #222",
+                    }}
+                  >
                     <div style={{ color: "#888", marginBottom: "4px" }}>
                       Available Affordances ({edge.to.affordances.length}):
                     </div>
@@ -263,13 +300,24 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
                         borderRadius: "2px",
                       }}
                     >
-                      {edge.to.affordances.slice(0, 5).map((aff, affIdx) => (
-                        <div key={affIdx} style={{ color: "#666", fontSize: "10px" }}>
-                          • {aff.description}
-                        </div>
-                      ))}
+                      {edge.to.affordances
+                        .slice(0, 5)
+                        .map((aff: any, affIdx: number) => (
+                          <div
+                            key={affIdx}
+                            style={{ color: "#666", fontSize: "10px" }}
+                          >
+                            • {aff.description}
+                          </div>
+                        ))}
                       {edge.to.affordances.length > 5 && (
-                        <div style={{ color: "#444", fontSize: "10px", fontStyle: "italic" }}>
+                        <div
+                          style={{
+                            color: "#444",
+                            fontSize: "10px",
+                            fontStyle: "italic",
+                          }}
+                        >
                           ... and {edge.to.affordances.length - 5} more
                         </div>
                       )}
@@ -337,7 +385,10 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
             backgroundColor: viewMode === "graph" ? "#4a90e2" : "#111",
             color: viewMode === "graph" ? "#fff" : "#888",
             border: "none",
-            borderBottom: viewMode === "graph" ? "2px solid #4a90e2" : "2px solid transparent",
+            borderBottom:
+              viewMode === "graph"
+                ? "2px solid #4a90e2"
+                : "2px solid transparent",
             cursor: "pointer",
             fontFamily: "Consolas, Monaco, monospace",
             fontSize: "12px",
@@ -353,7 +404,10 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
             backgroundColor: viewMode === "details" ? "#4a90e2" : "#111",
             color: viewMode === "details" ? "#fff" : "#888",
             border: "none",
-            borderBottom: viewMode === "details" ? "2px solid #4a90e2" : "2px solid transparent",
+            borderBottom:
+              viewMode === "details"
+                ? "2px solid #4a90e2"
+                : "2px solid transparent",
             cursor: "pointer",
             fontFamily: "Consolas, Monaco, monospace",
             fontSize: "12px",
@@ -378,7 +432,8 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
                 fontStyle: "italic",
               }}
             >
-              no cognitive map data yet - start a run to see the state transition graph
+              no cognitive map data yet - start a run to see the state
+              transition graph
             </div>
           ) : (
             <>
@@ -399,8 +454,8 @@ export function CognitiveMapView({ edges, currentStep, mini = false }: Cognitive
                   fontFamily: "Consolas, Monaco, monospace",
                 }}
               >
-                <span style={{ fontStyle: "italic" }}>legend:</span> nodes = observations (pages),
-                edges = actions
+                <span style={{ fontStyle: "italic" }}>legend:</span> nodes =
+                observations (pages), edges = actions
               </div>
             </>
           )}

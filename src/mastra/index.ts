@@ -6,6 +6,9 @@ import { LibSQLStore, LibSQLVector } from "@mastra/libsql";
 import { createPlannerAgent } from "../agents/planner.js";
 import { createActorAgent } from "../agents/actor.js";
 import { createCriticAgent } from "../agents/critic.js";
+import { createFlowAnalysisAgent } from "../agents/flow-analysis.js";
+import { createJudgeAgent } from "../agents/judge.js";
+import { createTestGenerationAgent } from "../agents/test-generation.js";
 
 /**
  * Mastra Studio Entry Point
@@ -25,9 +28,12 @@ export const memory = new Memory({
   embedder: "openai/text-embedding-3-small",
   options: {
     lastMessages: 12,
-    workingMemory: { enabled: true },            // episode scratchpad
-    semanticRecall: { topK: 4, messageRange: 2,  // enables cross-thread/domain recall
-      scope: "resource" },
+    workingMemory: { enabled: true }, // episode scratchpad
+    semanticRecall: {
+      topK: 4,
+      messageRange: 2, // enables cross-thread/domain recall
+      scope: "resource",
+    },
     threads: { generateTitle: true },
   },
 });
@@ -36,6 +42,9 @@ export const memory = new Memory({
 const plannerAgent = createPlannerAgent(memory);
 const actorAgent = createActorAgent(memory);
 const criticAgent = createCriticAgent(memory);
+const flowAnalysisAgent = createFlowAnalysisAgent(memory);
+const judgeAgent = createJudgeAgent(memory);
+const testGenerationAgent = createTestGenerationAgent(memory);
 
 // Initialize Mastra with observability enabled and agents registered
 export const mastra = new Mastra({
@@ -45,12 +54,11 @@ export const mastra = new Mastra({
     plannerAgent,
     actorAgent,
     criticAgent,
+    flowAnalysisAgent,
+    judgeAgent,
+    testGenerationAgent,
   },
   observability: {
     default: { enabled: true }, // Enables AI Tracing
-  },
-  telemetry: {
-    serviceName: "atlas-qa",
-    enabled: true, // Enables OTEL Tracing
   },
 });

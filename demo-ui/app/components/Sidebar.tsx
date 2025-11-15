@@ -10,7 +10,11 @@ type SidebarProps = {
 
 export function Sidebar({ runState }: SidebarProps) {
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
-    new Set(["url", "flow"])
+    new Set(
+      runState.mode === "flow-discovery"
+        ? ["url", "flow", "flow-analysis"]
+        : ["url", "flow"]
+    )
   );
 
   const togglePanel = (panelId: string) => {
@@ -81,17 +85,19 @@ export function Sidebar({ runState }: SidebarProps) {
                   runState.status === "running"
                     ? "#ffb000"
                     : runState.status === "completed"
-                    ? "#00ff00"
-                    : runState.status === "error"
-                    ? "#ff4444"
-                    : "#888",
+                      ? "#00ff00"
+                      : runState.status === "error"
+                        ? "#ff4444"
+                        : "#888",
                 fontWeight: "bold",
               }}
             >
               {runState.status}
             </span>
             {runState.status === "completed" && runState.endedReason && (
-              <span style={{ color: "#888", fontSize: "10px", marginLeft: "8px" }}>
+              <span
+                style={{ color: "#888", fontSize: "10px", marginLeft: "8px" }}
+              >
                 ({runState.endedReason.replace(/_/g, " ")})
               </span>
             )}
@@ -109,7 +115,13 @@ export function Sidebar({ runState }: SidebarProps) {
           {runState.goal && (
             <div style={{ marginTop: "12px" }}>
               <div style={{ color: "#888", marginBottom: "4px" }}>goal:</div>
-              <div style={{ color: "#ffb000", fontStyle: "italic", fontSize: "11px" }}>
+              <div
+                style={{
+                  color: "#ffb000",
+                  fontStyle: "italic",
+                  fontSize: "11px",
+                }}
+              >
                 {runState.goal}
               </div>
             </div>
@@ -132,11 +144,17 @@ export function Sidebar({ runState }: SidebarProps) {
         >
           <span style={{ color: "#888" }}>nodes:</span>{" "}
           <span style={{ color: "#00ff00" }}>
-            {new Set(runState.cognitiveMap.flatMap((e) => [e.fromKey, e.to.url])).size}
+            {
+              new Set(
+                runState.cognitiveMap.flatMap((e) => [e.fromKey, e.to.url])
+              ).size
+            }
           </span>
           {" | "}
           <span style={{ color: "#888" }}>edges:</span>{" "}
-          <span style={{ color: "#00ff00" }}>{runState.cognitiveMap.length}</span>
+          <span style={{ color: "#00ff00" }}>
+            {runState.cognitiveMap.length}
+          </span>
         </div>
         <CognitiveMapView
           edges={runState.cognitiveMap}
@@ -178,6 +196,151 @@ export function Sidebar({ runState }: SidebarProps) {
           )}
         </div>
       </Panel>
+
+      {/* Flow Analysis Panel - only in flow-discovery mode */}
+      {runState.mode === "flow-discovery" && (
+        <Panel
+          title="Flow Analysis"
+          isExpanded={expandedPanels.has("flow-analysis")}
+          onToggle={() => togglePanel("flow-analysis")}
+        >
+          <div
+            style={{
+              fontFamily: "Consolas, Monaco, monospace",
+              fontSize: "11px",
+            }}
+          >
+            {runState.flowAnalysis?.currentState ? (
+              <>
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ color: "#888", marginBottom: "4px" }}>
+                    Current State:
+                  </div>
+                  <div
+                    style={{
+                      color:
+                        runState.flowAnalysis.currentState === "start"
+                          ? "#00ff00"
+                          : runState.flowAnalysis.currentState === "end"
+                            ? "#ff4444"
+                            : "#ffb000",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {runState.flowAnalysis.currentState.replace(/_/g, " ")}
+                  </div>
+                </div>
+
+                {runState.flowAnalysis.judgeDecisions.length > 0 && (
+                  <div>
+                    <div style={{ color: "#888", marginBottom: "8px" }}>
+                      Judge Decisions:
+                    </div>
+                    <div style={{ fontSize: "10px" }}>
+                      {runState.flowAnalysis.judgeDecisions.map((jd, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            marginBottom: "8px",
+                            paddingBottom: "8px",
+                            borderBottom:
+                              i <
+                              runState.flowAnalysis!.judgeDecisions.length - 1
+                                ? "1px solid #222"
+                                : "none",
+                          }}
+                        >
+                          <div style={{ color: "#888" }}>
+                            Step {jd.step}: {jd.analysis.replace(/_/g, " ")}
+                          </div>
+                          <div
+                            style={{
+                              color: jd.decision.isCorrect
+                                ? "#00ff00"
+                                : "#ff4444",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {jd.decision.isCorrect
+                              ? "✓ Correct"
+                              : "✗ Incorrect"}
+                            {jd.decision.explanation && (
+                              <div
+                                style={{
+                                  color: "#888",
+                                  marginTop: "4px",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                {jd.decision.explanation}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ color: "#555", fontStyle: "italic" }}>
+                No flow analysis yet. Analysis will appear as the agent
+                explores.
+              </div>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {/* Test Code Panel - shown when test is generated */}
+      {runState.generatedTest && (
+        <Panel
+          title="Generated Test"
+          isExpanded={expandedPanels.has("test-code")}
+          onToggle={() => togglePanel("test-code")}
+        >
+          <div
+            style={{
+              fontFamily: "Consolas, Monaco, monospace",
+              fontSize: "10px",
+            }}
+          >
+            <div style={{ marginBottom: "8px" }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(runState.generatedTest || "");
+                }}
+                style={{
+                  padding: "4px 8px",
+                  fontSize: "10px",
+                  backgroundColor: "#1a1a1a",
+                  color: "#00ff00",
+                  border: "1px solid #333",
+                  fontFamily: "Consolas, Monaco, monospace",
+                  cursor: "pointer",
+                }}
+              >
+                [Copy to Clipboard]
+              </button>
+            </div>
+            <pre
+              style={{
+                backgroundColor: "#000",
+                padding: "12px",
+                border: "1px solid #333",
+                overflowX: "auto",
+                margin: 0,
+                color: "#00ff00",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              {runState.generatedTest}
+            </pre>
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }
@@ -216,9 +379,7 @@ function Panel({ title, isExpanded, onToggle, children }: PanelProps) {
         </span>
         {title}
       </div>
-      {isExpanded && (
-        <div style={{ padding: "12px" }}>{children}</div>
-      )}
+      {isExpanded && <div style={{ padding: "12px" }}>{children}</div>}
     </div>
   );
 }
