@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { Affordance, Observation, Transition } from "../core/types.js";
 import type { SemanticRule } from "./atlas-memory.js";
@@ -38,6 +38,26 @@ export class AtlasKnowledgeStore {
     } catch {
       // best-effort: swallow any filesystem errors so core flows don't crash
     }
+  }
+
+  async listHosts(): Promise<string[]> {
+    await this.ensureDirs();
+    const hosts = new Set<string>();
+    const collect = async (dir: string) => {
+      try {
+        const files = await readdir(dir, { withFileTypes: true });
+        for (const entry of files) {
+          if (entry.isFile() && entry.name.endsWith(".json")) {
+            hosts.add(entry.name.replace(/\.json$/, ""));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    await collect(this.cogmapDir);
+    await collect(this.semanticDir);
+    return Array.from(hosts.values()).sort();
   }
 
   private host(input: string): string {

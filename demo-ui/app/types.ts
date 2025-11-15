@@ -10,6 +10,7 @@ import type {
   InputState,
   RecentAction,
 } from "@atlas-core/core/types.js";
+import type { SemanticRule } from "@atlas-core/memory/atlas-memory.js";
 
 export type {
   Observation,
@@ -69,4 +70,30 @@ export type RunState = {
     }>;
   };
   generatedTest?: string;
+};
+
+export type RunSummary = {
+  id: string;
+  name: string;
+  goal: string;
+  startUrl: string;
+  mode: "goal" | "flow-discovery";
+  env: "LOCAL" | "BROWSERBASE";
+  beamSize: number;
+  maxSteps: number;
+  status: "running" | "completed" | "error";
+  createdAt: string;
+  updatedAt: string;
+  endedReason?: string;
+  errorMessage?: string;
+};
+
+export type StoredRun = RunSummary & {
+  events: Array<(AtlasEvent & { runId?: string }) & { timestamp: string }>;
+};
+
+export type KnowledgeEntry = {
+  host: string;
+  transitions: Transition[];
+  semanticRules: SemanticRule[];
 };

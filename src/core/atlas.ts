@@ -41,6 +41,7 @@ export type AtlasOptions = {
   runLabel?: string;
   timeBudgetMs?: number;
   onEvent?: AtlasEventCallback;
+  abortSignal?: AbortSignal;
 };
 
 export type AtlasStepArtifact = {
@@ -95,6 +96,7 @@ export async function runAtlas(
     runLabel,
     timeBudgetMs,
     onEvent,
+    abortSignal,
   } = opts;
   const vetoThreshold = 0.0; // optional: ignore obviously bad actions from Critic
 
@@ -178,7 +180,14 @@ export async function runAtlas(
     // Track recent actions for working memory (used by Actor and Critic)
     const recentActions: RecentAction[] = [];
 
+    const shouldAbort = () => abortSignal?.aborted ?? false;
+
     for (let t = 0; t < maxSteps; t++) {
+      if (shouldAbort()) {
+        endedReason = "aborted_by_user";
+        logWarn("Abort signal received, terminating run", { step: t });
+        break;
+      }
       logInfo("Step started", { step: t, plan: P.subgoals });
 
       if (timeBudgetMs && Date.now() - startTime > timeBudgetMs) {
@@ -268,6 +277,11 @@ export async function runAtlas(
         uncertainties,
         buildInvocationOptions("critic", t)
       );
+      if (shouldAbort()) {
+        endedReason = "aborted_by_user";
+        logWarn("Abort signal received after critique", { step: t });
+        break;
+      }
       logInfo("Critique results received", { step: t, critique: critiqueRes });
 
       const choiceIdx = Math.max(
@@ -556,6 +570,10 @@ export async function runAtlas(
 
       o = oNext;
       await M.ensureDomainLoaded(o.url);
+    }
+
+    if (shouldAbort() && endedReason !== "aborted_by_user") {
+      endedReason = "aborted_by_user";
     }
 
     runArtifacts = {

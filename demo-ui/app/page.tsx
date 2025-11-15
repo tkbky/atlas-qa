@@ -1,29 +1,219 @@
 "use client";
 
-import { useState, useRef } from "react";
-import type { RunState, StepData } from "./types";
-import type { AtlasEvent } from "./types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type {
+  AtlasEvent,
+  KnowledgeEntry,
+  RunState,
+  RunSummary,
+  StoredRun,
+} from "./types";
 import { Controls } from "./components/Controls";
 import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
+import { RunList } from "./components/RunList";
+import {
+  KnowledgeStoreView,
+  type KnowledgeFilters,
+} from "./components/KnowledgeStoreView";
+import {
+  applyEventToRunState,
+  createInitialRunState,
+} from "./utils/runState";
+
+const atlasEventTypes: Array<AtlasEvent["type"]> = [
+  "init",
+  "plan",
+  "semantic_rules",
+  "propose",
+  "critique",
+  "selected_action",
+  "action_executed",
+  "observation_after",
+  "map_update",
+  "replan",
+  "analysis",
+  "judgement",
+  "test_generation",
+  "done",
+  "error",
+];
 
 export default function Home() {
-  const [runState, setRunState] = useState<RunState>({
-    status: "idle",
-    mode: "goal",
-    goal: "",
-    startUrl: "",
-    steps: [],
-    currentStep: -1,
-    cognitiveMap: [],
-    semanticRules: "",
-    flowAnalysis: {
-      currentState: null,
-      judgeDecisions: [],
-    },
-  });
+  const [runSummaries, setRunSummaries] = useState<Record<string, RunSummary>>({});
+  const [runStates, setRunStates] = useState<Record<string, RunState>>({});
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [showControls, setShowControls] = useState<boolean>(true);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>([]);
+  const [knowledgeFilters, setKnowledgeFilters] = useState<KnowledgeFilters>({
+    runId: null,
+    host: "",
+    url: "",
+    q: "",
+  });
+  const eventSourcesRef = useRef(new Map<string, EventSource>());
+  const summariesRef = useRef(runSummaries);
+  const runStatesRef = useRef(runStates);
+
+  useEffect(() => {
+    return () => {
+      eventSourcesRef.current.forEach((source) => source.close());
+      eventSourcesRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    summariesRef.current = runSummaries;
+  }, [runSummaries]);
+  useEffect(() => {
+    runStatesRef.current = runStates;
+  }, [runStates]);
+
+  const fetchRuns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/runs", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const map: Record<string, RunSummary> = {};
+      (data.runs as RunSummary[]).forEach((run) => {
+        map[run.id] = run;
+      });
+      setRunSummaries(map);
+      if (!activeRunId && data.runs.length > 0) {
+        setActiveRunId((prev) => prev ?? data.runs[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to load runs", error);
+    }
+  }, [activeRunId]);
+
+  useEffect(() => {
+    fetchRuns();
+  }, [fetchRuns]);
+
+  const loadRunState = useCallback(async (runId: string) => {
+    if (runStatesRef.current[runId]) return;
+    try {
+      const res = await fetch(`/api/runs/${runId}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const run = (await res.json()) as StoredRun;
+      const derived = run.events.reduce(
+        (acc, event) => applyEventToRunState(acc, event),
+        createInitialRunState({
+          status: run.status,
+          goal: run.goal,
+          startUrl: run.startUrl,
+          mode: run.mode,
+        })
+      );
+      setRunStates((prev) => ({ ...prev, [runId]: derived }));
+    } catch (error) {
+      console.error(`Failed to load run ${runId}`, error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeRunId) {
+      loadRunState(activeRunId);
+    }
+  }, [activeRunId, loadRunState]);
+
+  useEffect(() => {
+    if (!knowledgeFilters.runId && activeRunId) {
+      setKnowledgeFilters((prev) => ({ ...prev, runId: activeRunId }));
+    }
+  }, [activeRunId, knowledgeFilters.runId]);
+
+  const fetchKnowledge = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (knowledgeFilters.runId) params.set("runId", knowledgeFilters.runId);
+      if (knowledgeFilters.host) params.set("host", knowledgeFilters.host);
+      if (knowledgeFilters.url) params.set("url", knowledgeFilters.url);
+      if (knowledgeFilters.q) params.set("q", knowledgeFilters.q);
+      const query = params.toString();
+      const res = await fetch(`/api/knowledge${query ? `?${query}` : ""}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setKnowledgeEntries((data.entries as KnowledgeEntry[]) ?? []);
+    } catch (error) {
+      console.error("Failed to fetch knowledge store", error);
+    }
+  }, [knowledgeFilters]);
+
+  useEffect(() => {
+    fetchKnowledge();
+  }, [fetchKnowledge]);
+
+  const handleAtlasEvent = useCallback(
+    (eventName: string, evt: MessageEvent, source: EventSource) => {
+      const payload = safeParse(evt.data);
+      if (!payload || !payload.runId) return;
+      const runId = payload.runId as string;
+      const atlasEvent = payload as AtlasEvent;
+      setRunStates((prev) => {
+        const meta = summariesRef.current[runId];
+        const current =
+          prev[runId] ??
+          createInitialRunState({
+            status: "running",
+            goal: meta?.goal ?? "",
+            startUrl: meta?.startUrl ?? "",
+            mode: meta?.mode ?? "goal",
+          });
+        return { ...prev, [runId]: applyEventToRunState(current, atlasEvent) };
+      });
+
+      if (eventName === "done" || eventName === "error") {
+        setRunSummaries((prev) => {
+          const summary = prev[runId];
+          if (!summary) return prev;
+          return {
+            ...prev,
+            [runId]: {
+              ...summary,
+              status: eventName === "done" ? "completed" : "error",
+              endedReason:
+                eventName === "done" ? atlasEvent.endedReason : summary.endedReason,
+              errorMessage:
+                eventName === "error" ? atlasEvent.message : summary.errorMessage,
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        });
+        source.close();
+        eventSourcesRef.current.delete(runId);
+      }
+    },
+    []
+  );
+
+  const connectRunStream = useCallback(
+    (runId: string) => {
+      if (eventSourcesRef.current.has(runId)) return;
+      const eventSource = new EventSource(`/api/runs/${runId}/stream`);
+      atlasEventTypes.forEach((eventName) => {
+        eventSource.addEventListener(eventName, (evt) =>
+          handleAtlasEvent(eventName, evt as MessageEvent, eventSource)
+        );
+      });
+      eventSource.onerror = () => {
+        console.error(`Run stream connection issue for ${runId}`);
+      };
+      eventSourcesRef.current.set(runId, eventSource);
+    },
+    [handleAtlasEvent]
+  );
+
+  useEffect(() => {
+    Object.values(runSummaries).forEach((run) => {
+      if (run.status === "running") {
+        connectRunStream(run.id);
+      }
+    });
+  }, [runSummaries, connectRunStream]);
 
   const handleStart = (
     goal: string,
@@ -33,305 +223,77 @@ export default function Home() {
     maxSteps: number,
     mode: "goal" | "flow-discovery"
   ) => {
-    // Close any existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    // Reset state
-    setRunState({
-      status: "running",
-      mode,
-      goal,
-      startUrl,
-      steps: [],
-      currentStep: -1,
-      cognitiveMap: [],
-      semanticRules: "",
-      flowAnalysis: {
-        currentState: null,
-        judgeDecisions: [],
-      },
-    });
-
-    // Build SSE URL
     const params = new URLSearchParams({
       goal,
       startUrl,
       env,
       beamSize: beamSize.toString(),
       maxSteps: maxSteps.toString(),
+      mode,
     });
-    const url = `/api/atlas/stream?${params.toString()}`;
+    const eventSource = new EventSource(`/api/atlas/stream?${params.toString()}`);
+    let currentRunId: string | null = null;
 
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
-
-    // Track step data by step index
-    const stepDataMap = new Map<number, Partial<StepData>>();
-
-    const getOrCreateStepData = (step: number): Partial<StepData> => {
-      if (!stepDataMap.has(step)) {
-        stepDataMap.set(step, { step });
-      }
-      return stepDataMap.get(step)!;
-    };
-
-    eventSource.addEventListener("init", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "init" };
-      console.log("Init:", event);
-    });
-
-    eventSource.addEventListener("plan", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "plan" };
-      console.log("Plan:", event);
-      setRunState((prev) => ({
+    eventSource.addEventListener("run_created", (evt) => {
+      const payload = safeParse(evt.data);
+      if (!payload || !payload.runId) return;
+      const run: RunSummary = payload.run;
+      setRunSummaries((prev) => ({ ...prev, [run.id]: run }));
+      setRunStates((prev) => ({
         ...prev,
-        plan: event.plan,
-        steps: prev.steps.map((s) => ({ ...s, plan: event.plan })),
+        [run.id]: createInitialRunState({
+          status: "running",
+          goal: run.goal,
+          startUrl: run.startUrl,
+          mode: run.mode,
+        }),
       }));
+      setActiveRunId(run.id);
+      currentRunId = run.id;
+      eventSourcesRef.current.set(run.id, eventSource);
     });
 
-    eventSource.addEventListener("semantic_rules", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & {
-        type: "semantic_rules";
-      };
-      console.log("Semantic rules:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.semanticRules = event.rules;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        } else {
-          newSteps.push(stepData as StepData);
-        }
-        return {
-          ...prev,
-          steps: newSteps,
-          semanticRules: event.rules || prev.semanticRules, // Update global semantic rules
-        };
-      });
-    });
-
-    eventSource.addEventListener("propose", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "propose" };
-      console.log("Propose:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.candidates = event.candidates;
-      stepData.inputState = event.inputState;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        } else {
-          // New step - include current plan
-          newSteps.push({ ...stepData, plan: prev.plan } as StepData);
-        }
-        return { ...prev, steps: newSteps, currentStep: event.step };
-      });
-    });
-
-    eventSource.addEventListener("critique", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "critique" };
-      console.log("Critique:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.critique = event.critique;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        }
-        return { ...prev, steps: newSteps };
-      });
-    });
-
-    eventSource.addEventListener("selected_action", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & {
-        type: "selected_action";
-      };
-      console.log("Selected action:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.selectedAction = event.action;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        }
-        return { ...prev, steps: newSteps };
-      });
-    });
-
-    eventSource.addEventListener("observation_after", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & {
-        type: "observation_after";
-      };
-      console.log("Observation after:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.observationBefore = event.before;
-      stepData.observationAfter = event.after;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        }
-        return { ...prev, steps: newSteps };
-      });
-    });
-
-    eventSource.addEventListener("map_update", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "map_update" };
-      console.log("Map update:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.edge = event.edge;
-
-      setRunState((prev) => ({
-        ...prev,
-        cognitiveMap: [...prev.cognitiveMap, event.edge],
-      }));
-    });
-
-    eventSource.addEventListener("replan", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "replan" };
-      console.log("Replan:", event);
-      setRunState((prev) => ({
-        ...prev,
-        plan: event.plan,
-        steps: prev.steps.map((s) => ({ ...s, plan: event.plan })),
-      }));
-    });
-
-    eventSource.addEventListener("analysis", (e) => {
-      const event = JSON.parse(e.data) as Extract<
-        AtlasEvent,
-        { type: "analysis" }
-      >;
-      console.log("Flow Analysis:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.flowAnalysis = event.analysis;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        }
-        return {
-          ...prev,
-          steps: newSteps,
-          flowAnalysis: {
-            ...prev.flowAnalysis!,
-            currentState: event.analysis,
-          },
-        };
-      });
-    });
-
-    eventSource.addEventListener("judgement", (e) => {
-      const event = JSON.parse(e.data) as Extract<
-        AtlasEvent,
-        { type: "judgement" }
-      >;
-      console.log("Judge Decision:", event);
-      const stepData = getOrCreateStepData(event.step);
-      stepData.judgeDecision = event.decision;
-
-      setRunState((prev) => {
-        const newSteps = [...prev.steps];
-        const idx = newSteps.findIndex((s) => s.step === event.step);
-        if (idx >= 0) {
-          newSteps[idx] = { ...newSteps[idx], ...stepData } as StepData;
-        }
-        return {
-          ...prev,
-          steps: newSteps,
-          flowAnalysis: {
-            ...prev.flowAnalysis!,
-            judgeDecisions: [
-              ...prev.flowAnalysis!.judgeDecisions,
-              {
-                step: event.step,
-                analysis: prev.flowAnalysis!.currentState || "intermediate",
-                decision: event.decision,
-                prompt: event.prompt,
-              },
-            ],
-          },
-        };
-      });
-    });
-
-    eventSource.addEventListener("test_generation", (e) => {
-      const event = JSON.parse(e.data) as Extract<
-        AtlasEvent,
-        { type: "test_generation" }
-      >;
-      console.log("Test Generation:", event);
-      setRunState((prev) => ({
-        ...prev,
-        generatedTest: event.generatedCode,
-      }));
-    });
-
-    eventSource.addEventListener("done", (e) => {
-      const event = JSON.parse(e.data) as AtlasEvent & { type: "done" };
-      console.log("Done:", event);
-      setRunState((prev) => ({
-        ...prev,
-        status: "completed",
-        cognitiveMap: event.cognitiveMap,
-        endedReason: event.endedReason,
-      }));
-      eventSource.close();
-    });
-
-    eventSource.addEventListener("error", (e: Event) => {
-      const msgEvent = e as MessageEvent;
-      let errorMessage = "Unknown error";
-      try {
-        const event = JSON.parse(msgEvent.data) as AtlasEvent & {
-          type: "error";
-        };
-        errorMessage = event.message;
-      } catch {
-        errorMessage = "Stream connection error";
-      }
-      console.error("Error:", errorMessage);
-      setRunState((prev) => ({
-        ...prev,
-        status: "error",
-        errorMessage,
-      }));
-      eventSource.close();
+    atlasEventTypes.forEach((eventName) => {
+      eventSource.addEventListener(eventName, (evt) =>
+        handleAtlasEvent(eventName, evt as MessageEvent, eventSource)
+      );
     });
 
     eventSource.onerror = () => {
-      if (eventSource.readyState === EventSource.CLOSED) {
-        console.log("EventSource closed");
-      }
+      console.error(
+        `EventSource connection issue for ${currentRunId ?? "pending-run"}`
+      );
     };
   };
 
-  const handleStop = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+  const handleStopRun = useCallback(async (runId: string) => {
+    try {
+      const res = await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
+      if (!res.ok) {
+        console.error(`Failed to stop run ${runId}: ${res.status}`);
+      }
+    } catch (error) {
+      console.error(`Failed to stop run ${runId}`, error);
     }
-    setRunState((prev) => ({
-      ...prev,
-      status: prev.status === "running" ? "idle" : prev.status,
-    }));
+  }, []);
+
+  const handleRename = async (runId: string, name: string) => {
+    try {
+      const res = await fetch(`/api/runs/${runId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) return;
+      const updated = (await res.json()) as RunSummary;
+      setRunSummaries((prev) => ({ ...prev, [runId]: updated }));
+    } catch (error) {
+      console.error("Failed to rename run", error);
+    }
   };
+
+  const selectedRunState = activeRunId ? runStates[activeRunId] : undefined;
+  const runsForList = Object.values(runSummaries);
 
   return (
     <div
@@ -345,7 +307,6 @@ export default function Home() {
         overflow: "hidden",
       }}
     >
-      {/* Header with collapsible controls */}
       <div
         style={{
           borderBottom: "1px solid #333",
@@ -369,70 +330,122 @@ export default function Home() {
         </div>
         {showControls && (
           <div style={{ padding: "0 20px 20px 20px" }}>
-            <Controls
-              onStart={handleStart}
-              onStop={handleStop}
-              isRunning={runState.status === "running"}
-            />
+            <Controls onStart={handleStart} />
           </div>
         )}
       </div>
 
-      {/* Error display */}
-      {runState.status === "error" && (
-        <div
-          style={{
-            padding: "12px 20px",
-            backgroundColor: "#2a0000",
-            border: "1px solid #ff4444",
-            borderLeft: "4px solid #ff4444",
-            color: "#ff4444",
-            fontFamily: "Consolas, Monaco, monospace",
-            fontSize: "12px",
-          }}
-        >
-          <span style={{ fontWeight: "bold" }}>ERROR:</span>{" "}
-          {runState.errorMessage}
-        </div>
-      )}
-
-      {/* Main content area with two columns */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "30% 70%",
+          gridTemplateColumns: "22% 38% 40%",
           gap: "1px",
           backgroundColor: "#333",
           flex: 1,
           overflow: "hidden",
         }}
       >
-        {/* Left Sidebar */}
         <div
           style={{
             backgroundColor: "#000",
             padding: "15px",
             overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
           }}
         >
-          <Sidebar runState={runState} />
+          <div>
+            <div style={{ fontSize: "13px", marginBottom: "8px" }}>Runs</div>
+            <RunList
+              runs={runsForList}
+              activeRunId={activeRunId}
+              onSelect={(id) => setActiveRunId(id)}
+              onRename={handleRename}
+              onStop={handleStopRun}
+            />
+          </div>
         </div>
 
-        {/* Right Main Area - Timeline */}
         <div
           style={{
             backgroundColor: "#000",
             padding: "15px",
-            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            overflow: "hidden",
           }}
         >
-          <Timeline
-            steps={runState.steps}
-            currentStep={runState.currentStep}
-            status={runState.status}
-          />
+          {selectedRunState ? (
+            <>
+              <div style={{ flexShrink: 0 }}>
+                <Sidebar runState={selectedRunState} />
+              </div>
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                <Timeline
+                  steps={selectedRunState.steps}
+                  currentStep={selectedRunState.currentStep}
+                  status={selectedRunState.status}
+                />
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#555",
+                fontStyle: "italic",
+              }}
+            >
+              Select a run to view details
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "#000",
+            padding: "15px",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: "bold",
+              color: "#00ff00",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+            }}
+          >
+            knowledge store
+          </div>
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            <KnowledgeStoreView
+              entries={knowledgeEntries}
+              filters={knowledgeFilters}
+              onFiltersChange={setKnowledgeFilters}
+              runs={runsForList}
+              onRefresh={fetchKnowledge}
+            />
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+const safeParse = (value: string) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
