@@ -1,5 +1,6 @@
 import type { Observation, Affordance } from "../core/types.js";
 import type { Memory } from "@mastra/memory";
+import { AtlasKnowledgeStore } from "./knowledge-store.js";
 
 /**
  * Minimal Mastra-backed memory wrapper for ATLAS:
@@ -36,7 +37,11 @@ export type SemanticRule = {
 const tid = () => `m:${Date.now()}:${Math.round(Math.random() * 1e9)}`;
 
 export class AtlasMemory {
-  constructor(private mem: Memory) {}
+  private knowledgeStore: AtlasKnowledgeStore;
+
+  constructor(private mem: Memory, knowledgeStore?: AtlasKnowledgeStore) {
+    this.knowledgeStore = knowledgeStore ?? new AtlasKnowledgeStore();
+  }
 
   private host(url: string): string {
     try {
@@ -148,6 +153,17 @@ export class AtlasMemory {
         resourceId: h,
       })
       .catch(() => {});
+
+    // Persist semantic rules for cross-run recall outside Mastra memory.
+    this.knowledgeStore.recordSemanticRule(url, rule).catch(() => {});
+  }
+
+  /**
+   * Directly read previously recorded semantic rules for a host.
+   * Useful for non-agent consumers that want structured data instead of strings.
+   */
+  async listSemanticRules(url: string): Promise<SemanticRule[]> {
+    return this.knowledgeStore.getSemanticRules(url);
   }
 
   /**

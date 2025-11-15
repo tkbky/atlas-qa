@@ -28,6 +28,7 @@ The agent uses three complementary memories crucial for long-horizon planning:
     - **Crucial Implementation Detail (Agentic Summarization):** Instead of storing raw HTML, an LLM agent curates **concise summaries** emphasizing the _deltas_ (differences between successive observations) and _newly available actions/affordances_. This abstraction lowers the cognitive load of the agent and avoids HTML bloat.
     - **Retrieval Function:** The map supports look-ahead simulation by retrieving the next predicted raw observation, $\hat{o}_{t+1}$, when queried with the current observation and a proposed action: $\hat{o}_{t+1} = M(o_t, a)$. A generic placeholder is returned for unexplored nodes.
 3.  **Semantic Memory (World Knowledge):** Stores learned environment-specific constraints, formats, rules, and hazards (e.g., specific date formats, non-recoverable states). This information is used to inform simulation and penalize risky actions.
+    - **Persistent Knowledge Store:** Both the Cognitive Map and Semantic Memory now hydrate from an on-disk `AtlasKnowledgeStore` (default: `.atlas/knowledge/{cogmap|semantic}/{host}.json`), so discoveries made while exploring one flow are immediately available to future flows as well as downstream agents (test generation, demo creation, etc.).
 
 #### **3. Look-ahead Action Simulation (LAS)**
 

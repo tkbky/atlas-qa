@@ -1,6 +1,6 @@
 import type { Observation, Affordance, Transition } from "./types.js";
 import type { Memory } from "@mastra/memory";
-import { AtlasMemory } from "../memory/index.js";
+import { AtlasMemory, AtlasKnowledgeStore } from "../memory/index.js";
 
 const norm = (s: string) => s?.replace(/\s+/g, " ").trim() ?? "";
 const keyAction = (a: Affordance) =>
@@ -33,9 +33,34 @@ export class CognitiveMap {
   private edges = new Map<string, Transition>(); // key = fromKey + ">>" + keyAction
   // Optional: also persist to Mastra memory so future runs can recall
   private atlasMem: AtlasMemory;
+  private knowledgeStore: AtlasKnowledgeStore;
+  private hydratedHosts = new Set<string>();
 
-  constructor(memory: Memory) {
-    this.atlasMem = new AtlasMemory(memory);
+  constructor(memory: Memory, knowledgeStore?: AtlasKnowledgeStore) {
+    this.knowledgeStore = knowledgeStore ?? new AtlasKnowledgeStore();
+    this.atlasMem = new AtlasMemory(memory, this.knowledgeStore);
+  }
+
+  private host(url: string): string {
+    try {
+      return new URL(url).host;
+    } catch {
+      return "unknown";
+    }
+  }
+
+  async ensureDomainLoaded(url: string): Promise<void> {
+    const host = this.host(url);
+    if (this.hydratedHosts.has(host)) return;
+    const transitions = await this.knowledgeStore.loadTransitions(host);
+    transitions.forEach((tr) => {
+      const k = `${tr.fromKey}>>${tr.actionKey}`;
+      const existing = this.edges.get(k);
+      if (!existing || (existing.lastSeenAt ?? 0) < (tr.lastSeenAt ?? 0)) {
+        this.edges.set(k, tr);
+      }
+    });
+    this.hydratedHosts.add(host);
   }
 
   lookup(from: Observation, a: Affordance): Observation | null {
@@ -70,7 +95,7 @@ export class CognitiveMap {
     const visits = (existing?.visits ?? 0) + 1;
     const uncertainty = 1 / (1 + visits);
 
-    this.edges.set(k, {
+    const record = {
       fromKey: keyObs(from),
       actionKey: keyAction(a),
       to,
@@ -79,10 +104,14 @@ export class CognitiveMap {
       visits,
       firstSeenAt: existing?.firstSeenAt ?? now,
       lastSeenAt: now,
-    });
+    } satisfies Transition;
+
+    this.edges.set(k, record);
+    this.hydratedHosts.add(this.host(from.url));
 
     // Best-effort persist for cross-run retrieval:
     this.atlasMem.recordTransition(from, a, to, delta).catch(() => {});
+    this.knowledgeStore.recordTransition(from, a, record).catch(() => {});
   }
 
   placeholder(from: Observation, a: Affordance): Observation {

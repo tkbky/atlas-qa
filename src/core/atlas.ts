@@ -21,7 +21,7 @@ import {
   judge,
 } from "../agents/index.js";
 import type { AgentInvocationOptions } from "../agents/index.js";
-import { AtlasMemory } from "../memory/index.js";
+import { AtlasMemory, AtlasKnowledgeStore } from "../memory/index.js";
 import { generateDelta } from "../agents/helpers.js";
 import {
   initRunLogger,
@@ -140,8 +140,9 @@ export async function runAtlas(
   };
 
   const web = new WebEnv();
-  const M = new CognitiveMap(memory);
-  const atlasMem = new AtlasMemory(memory);
+  const knowledgeStore = new AtlasKnowledgeStore();
+  const M = new CognitiveMap(memory, knowledgeStore);
+  const atlasMem = new AtlasMemory(memory, knowledgeStore);
   const steps: AtlasStepArtifact[] = [];
   let runArtifacts: AtlasRunArtifacts | null = null;
   const startTime = Date.now();
@@ -160,6 +161,7 @@ export async function runAtlas(
     logInfo("Navigated to start URL", { startUrl });
 
     let o: Observation = await web.currentObservation();
+    await M.ensureDomainLoaded(o.url);
     logDebug("Initial observation captured", summarizeObservation(o));
 
     let P = await plan(
@@ -187,6 +189,9 @@ export async function runAtlas(
         });
         break;
       }
+
+      // Ensure we have the latest cognitive map context before using it.
+      await M.ensureDomainLoaded(o.url);
 
       // Retrieve semantic memory (learned rules) for the current domain
       const semanticRules = await atlasMem.summarizeRulesForUrl(o.url);
@@ -550,6 +555,7 @@ export async function runAtlas(
       }
 
       o = oNext;
+      await M.ensureDomainLoaded(o.url);
     }
 
     runArtifacts = {

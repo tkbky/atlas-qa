@@ -25,7 +25,7 @@ export { WebEnv } from "./browser/index.js";
 export { plan, propose, critique, isFormControl, getMethodForElement, memory, mastra } from "./agents/index.js";
 
 // Memory exports
-export { AtlasMemory, type SemanticRule } from "./memory/index.js";
+export { AtlasMemory, AtlasKnowledgeStore, type SemanticRule } from "./memory/index.js";
 
 // Strategy exports
 export { applyTemporalInput } from "./strategies/index.js";

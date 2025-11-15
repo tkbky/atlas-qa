@@ -2,14 +2,17 @@ import type { Observation } from "../core/types.js";
 import { WebEnv } from "../browser/index.js";
 import { CognitiveMap } from "../core/cognitive-map.js";
 import { memory } from "../agents/index.js";
+import { AtlasKnowledgeStore } from "../memory/index.js";
 
 export async function seedCognitiveMap(startUrl: string, steps = 5) {
   const web = new WebEnv();
-  const M = new CognitiveMap(memory);
+  const knowledgeStore = new AtlasKnowledgeStore();
+  const M = new CognitiveMap(memory, knowledgeStore);
   await web.init("LOCAL");
   await web.goto(startUrl);
 
   let o: Observation = await web.currentObservation();
+  await M.ensureDomainLoaded(o.url);
 
   for (let i = 0; i < steps; i++) {
     const safe = o.affordances.filter(a =>
@@ -24,6 +27,7 @@ export async function seedCognitiveMap(startUrl: string, steps = 5) {
     M.record(o, a, oNext, `seed ${i}`);
     await web.goBack();
     o = await web.currentObservation();
+    await M.ensureDomainLoaded(o.url);
   }
 
   await web.close();
