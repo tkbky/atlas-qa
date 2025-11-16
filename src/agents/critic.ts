@@ -56,6 +56,7 @@ export async function critique(
   onEvent?: AtlasEventCallback,
   recentActions: RecentAction[] = [],
   uncertainties?: number[],
+  semanticRules?: string,
   invocation?: AgentInvocationOptions
 ): Promise<Critique> {
   const recentActionsText =
@@ -79,8 +80,14 @@ export async function critique(
     })
     .join("\n");
 
+  const semanticRulesText = semanticRules?.trim()
+    ? `Site Knowledge:\n${semanticRules.trim()}\n`
+    : "";
+
   const prompt = `Goal: ${goal}
 Plan: ${P.subgoals.map((s) => s.text).join(" → ")}
+
+${semanticRulesText}
 
 Current Page: ${o.title} @ ${o.url}
 

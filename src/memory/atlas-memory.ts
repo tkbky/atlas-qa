@@ -13,14 +13,26 @@ import { AtlasKnowledgeStore } from "./knowledge-store.js";
  *    Messages are typed ("SEM_RULE", "COG_EDGE") and carry a small JSON block.
  */
 
+export const KNOWN_SEMANTIC_RULE_KINDS = [
+  "future-datetime",
+  "datetime-format",
+  "non-recoverable",
+  "rate-limit",
+  "required-field",
+  "form-hint",
+] as const;
+export type KnownSemanticRuleKind = (typeof KNOWN_SEMANTIC_RULE_KINDS)[number];
+export type SemanticRuleCategory =
+  | "format"
+  | "validation"
+  | "state-risk"
+  | "guidance"
+  | (string & {});
+export type SemanticRuleKind = KnownSemanticRuleKind | (string & {});
+
 export type SemanticRule = {
   id: string;
-  kind:
-    | "future-datetime"
-    | "datetime-format"
-    | "non-recoverable"
-    | "rate-limit"
-    | "other";
+  kind: SemanticRuleKind;
   fieldSig?: {
     type?: string | null;
     label?: string | null;
@@ -31,6 +43,8 @@ export type SemanticRule = {
   source: "dom" | "server" | "critic";
   confidence?: number; // 0..1
   note?: string;
+  category?: SemanticRuleCategory;
+  tags?: string[];
   firstSeenAt?: string; // URL
 };
 
@@ -128,8 +142,14 @@ export class AtlasMemory {
   async writeSemanticRule(url: string, rule: SemanticRule) {
     const h = this.host(url);
     await this.ensureDomainThreads(url);
+    const metaBits = [
+      rule.category ? `category=${rule.category}` : undefined,
+      rule.tags?.length ? `tags=${rule.tags.join(",")}` : undefined,
+    ].filter(Boolean);
+    const metaLine = metaBits.length ? `Meta: ${metaBits.join(" · ")}` : undefined;
     const content = [
       `[SEM_RULE] ${rule.kind} @ ${h}`,
+      metaLine,
       rule.note ? `Note: ${rule.note}` : undefined,
       "```json",
       JSON.stringify(rule),

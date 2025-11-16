@@ -93,7 +93,9 @@ export async function handleKnowledgeRequest(req: Request, res: Response) {
         ? (rule.firstSeenAt || "").toLowerCase().includes(urlFilter)
         : true;
       const textMatch = textQuery
-        ? `${rule.kind} ${rule.note ?? ""}`.toLowerCase().includes(textQuery)
+        ? `${rule.kind} ${rule.category ?? ""} ${rule.note ?? ""} ${(rule.tags ?? []).join(" ")}`
+            .toLowerCase()
+            .includes(textQuery)
         : true;
       return urlMatch && textMatch;
     });

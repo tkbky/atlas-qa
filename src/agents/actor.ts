@@ -96,6 +96,7 @@ export async function propose(
   step?: number,
   onEvent?: AtlasEventCallback,
   recentActions: RecentAction[] = [],
+  semanticRules?: string,
   invocation?: AgentInvocationOptions
 ): Promise<Candidate[]> {
   const affordancesText = o.affordances
@@ -123,10 +124,16 @@ For actions with no visible elements, use the instruction field (set selector an
 - To refresh: { "instruction": "Refresh the page.", "selector": null, "method": null }`;
   }
 
+  const semanticRulesText = semanticRules?.trim()
+    ? `Site Knowledge:\n${semanticRules.trim()}`
+    : "";
+
   const prompt = `Goal: ${goal}
 
 Plan:
 ${P.subgoals.map((s) => `• ${s.text}`).join("\n")}
+
+${semanticRulesText}
 
 Current Page: ${o.title} @ ${o.url}
 

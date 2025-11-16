@@ -23,7 +23,11 @@ import {
   judge,
 } from "../agents/index.js";
 import type { AgentInvocationOptions } from "../agents/index.js";
-import { AtlasMemory, AtlasKnowledgeStore } from "../memory/index.js";
+import {
+  AtlasMemory,
+  AtlasKnowledgeStore,
+  deriveSemanticRulesFromObservation,
+} from "../memory/index.js";
 import { generateDelta } from "../agents/helpers.js";
 import {
   initRunLogger,
@@ -374,6 +378,7 @@ export async function runAtlas(
         t,
         stepEventCallback,
         recentActions,
+        semanticRules,
         buildInvocationOptions("actor", t)
       );
       logInfo("Candidates proposed", { step: t, candidates: C });
@@ -410,6 +415,7 @@ export async function runAtlas(
         stepEventCallback,
         recentActions,
         uncertainties,
+        semanticRules,
         buildInvocationOptions("critic", t)
       );
       if (runControl.shouldStop()) {
@@ -471,6 +477,7 @@ export async function runAtlas(
             t,
             stepEventCallback,
             recentActions,
+            semanticRules,
             buildInvocationOptions("actor", t, "retry-fill")
           );
           if (C.length === 0) {
@@ -498,6 +505,7 @@ export async function runAtlas(
           t,
           stepEventCallback,
           recentActions,
+          semanticRules,
           buildInvocationOptions("actor", t, "retry-picker")
         );
         const alt = newCandidates.find(
@@ -528,6 +536,7 @@ export async function runAtlas(
           t,
           stepEventCallback,
           recentActions,
+          semanticRules,
           buildInvocationOptions("actor", t, "retry-veto")
         );
         if (C.length === 0) {
@@ -605,6 +614,20 @@ export async function runAtlas(
       );
       M.record(o, choice.action, oNext, delta);
       logDebug("Cognitive map updated", { step: t, delta });
+
+      // Opportunistically capture semantic rules from the DOM
+      const derivedSemanticRules = deriveSemanticRulesFromObservation(oNext);
+      if (derivedSemanticRules.length > 0) {
+        await Promise.all(
+          derivedSemanticRules.map((rule) =>
+            atlasMem.writeSemanticRule(oNext.url, rule).catch(() => {})
+          )
+        );
+        logDebug("Semantic rules derived", {
+          step: t,
+          count: derivedSemanticRules.length,
+        });
+      }
 
       // Add to recent actions for working memory
       recentActions.push({

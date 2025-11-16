@@ -55,6 +55,7 @@ export function propose(
   step?: number,
   onEvent?: AtlasEventCallback,
   recentActions: RecentAction[] = [],
+  semanticRules?: string,
   invocation?: AgentInvocationOptions
 ): Promise<Candidate[]> {
   const agent = mastra.getAgent("actorAgent");
@@ -67,6 +68,7 @@ export function propose(
     step,
     onEvent,
     recentActions,
+    semanticRules,
     invocation
   );
 }
@@ -81,6 +83,7 @@ export function critique(
   onEvent?: AtlasEventCallback,
   recentActions: RecentAction[] = [],
   uncertainties?: number[],
+  semanticRules?: string,
   invocation?: AgentInvocationOptions
 ): Promise<Critique> {
   const agent = mastra.getAgent("criticAgent");
@@ -95,6 +98,7 @@ export function critique(
     onEvent,
     recentActions,
     uncertainties,
+    semanticRules,
     invocation
   );
 }

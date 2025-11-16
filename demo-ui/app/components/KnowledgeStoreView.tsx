@@ -174,9 +174,23 @@ const updateFilter = (
                         fontSize: "11px",
                       }}
                     >
-                      <div style={{ color: "#ffb000", textTransform: "uppercase" }}>
-                        {rule.kind}
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {rule.category && (
+                          <span style={badgeStyle}>{rule.category}</span>
+                        )}
+                        <span style={{ color: "#ffb000", textTransform: "uppercase" }}>
+                          {rule.kind}
+                        </span>
                       </div>
+                      {rule.tags && rule.tags.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                          {rule.tags.map((tag) => (
+                            <span key={tag} style={tagStyle}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {rule.note && (
                         <div style={{ color: "#aaa", marginTop: "4px" }}>{rule.note}</div>
                       )}
@@ -218,4 +232,24 @@ const sectionLabel: React.CSSProperties = {
   letterSpacing: "0.05em",
   textTransform: "uppercase",
   marginBottom: "6px",
+};
+
+const badgeStyle: React.CSSProperties = {
+  backgroundColor: "#112c11",
+  border: "1px solid #1f7f1f",
+  color: "#7cff7c",
+  fontSize: "9px",
+  padding: "1px 4px",
+  borderRadius: "2px",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
+
+const tagStyle: React.CSSProperties = {
+  backgroundColor: "#1a1a1a",
+  border: "1px solid #333",
+  color: "#bbb",
+  fontSize: "9px",
+  padding: "1px 4px",
+  borderRadius: "2px",
 };
