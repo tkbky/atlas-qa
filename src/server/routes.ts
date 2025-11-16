@@ -6,6 +6,7 @@ import { handleRunStream } from "./run-stream.js";
 import { handleRunStop } from "./run-stop.js";
 import { launchRunExecution } from "./run-launcher.js";
 import { pauseRun, resumeRun, setRunBudget } from "./run-events.js";
+import { setupTestLabRoutes } from "./test-lab.js";
 
 export function setupRoutes(app: Express) {
   // Health check endpoint
@@ -147,4 +148,6 @@ export function setupRoutes(app: Express) {
   });
 
   app.get("/api/knowledge", handleKnowledgeRequest);
+
+  setupTestLabRoutes(app);
 }

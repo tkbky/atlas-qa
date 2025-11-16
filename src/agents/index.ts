@@ -14,12 +14,20 @@ import type {
   RecentAction,
   Affordance,
 } from "../core/types.js";
+import type {
+  HostSnapshot,
+  TestPlanSuggestion,
+  TestGenerationResult,
+  ActionHint,
+} from "../test-lab/types.js";
 import { AtlasMemory } from "../memory/atlas-memory.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 
 // Import the shared Mastra instance from mastra/index.ts
 // This ensures we use the same instance with observability properly configured
 import { mastra, memory } from "../mastra/index.js";
+import { suggestTestPlans as suggestTestPlansFn } from "./test-plan.js";
+import { generateTestFromSnapshot as generateTestFromSnapshotFn } from "./test-lab-generator.js";
 
 /**
  * Mastra Agents with Observability:
@@ -161,6 +169,38 @@ export function generateTest(
     onEvent,
     invocation
   );
+}
+
+export function suggestTestPlans(
+  host: string,
+  snapshot: HostSnapshot,
+  userPrompt?: string,
+  url?: string
+): Promise<{ suggestions: TestPlanSuggestion[]; prompt: string; rawOutput: string }> {
+  const agent = mastra.getAgent("testPlanAgent");
+  return suggestTestPlansFn(agent, {
+    host,
+    snapshot,
+    userPrompt,
+    url,
+  });
+}
+
+export function generateTestFromKnowledge(
+  host: string,
+  goal: string,
+  snapshot: HostSnapshot,
+  userPrompt?: string,
+  actionCatalog?: ActionHint[]
+): Promise<TestGenerationResult> {
+  const agent = mastra.getAgent("testLabGeneratorAgent");
+  return generateTestFromSnapshotFn(agent, {
+    host,
+    goal,
+    snapshot,
+    userPrompt,
+    actionCatalog,
+  });
 }
 
 // Re-export helper functions

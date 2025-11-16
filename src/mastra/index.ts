@@ -9,6 +9,8 @@ import { createCriticAgent } from "../agents/critic.js";
 import { createFlowAnalysisAgent } from "../agents/flow-analysis.js";
 import { createJudgeAgent } from "../agents/judge.js";
 import { createTestGenerationAgent } from "../agents/test-generation.js";
+import { createTestPlanAgent } from "../agents/test-plan.js";
+import { createTestLabGeneratorAgent } from "../agents/test-lab-generator.js";
 
 /**
  * Mastra Studio Entry Point
@@ -45,6 +47,8 @@ const criticAgent = createCriticAgent(memory);
 const flowAnalysisAgent = createFlowAnalysisAgent(memory);
 const judgeAgent = createJudgeAgent(memory);
 const testGenerationAgent = createTestGenerationAgent(memory);
+const testPlanAgent = createTestPlanAgent(memory);
+const testLabGeneratorAgent = createTestLabGeneratorAgent(memory);
 
 // Initialize Mastra with observability enabled and agents registered
 export const mastra = new Mastra({
@@ -57,6 +61,8 @@ export const mastra = new Mastra({
     flowAnalysisAgent,
     judgeAgent,
     testGenerationAgent,
+    testPlanAgent,
+    testLabGeneratorAgent,
   },
   observability: {
     default: { enabled: true }, // Enables AI Tracing
