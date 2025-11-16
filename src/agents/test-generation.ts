@@ -4,6 +4,7 @@ import type { Memory } from "@mastra/memory";
 import type { AtlasEventCallback, Affordance } from "../core/types.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
+import { emitRationaleEvent } from "./helpers.js";
 
 export function createTestGenerationAgent(memory: Memory): Agent {
   return new Agent({
@@ -91,6 +92,22 @@ ${initialCode}`;
       generatedCode,
     });
   }
+
+  await emitRationaleEvent(
+    onEvent,
+    {
+      agent: "test-generation",
+      step,
+      title: "Test generation",
+      rationale:
+        res.text?.trim() ||
+        JSON.stringify(res.object ?? {}, null, 2) ||
+        "Test generation agent returned no explanation.",
+      prompt,
+      output: generatedCode,
+    },
+    step
+  );
 
   return generatedCode;
 }

@@ -40,10 +40,11 @@ export function plan(
   goal: string,
   o0: Observation,
   onEvent?: AtlasEventCallback,
-  invocation?: AgentInvocationOptions
+  invocation?: AgentInvocationOptions,
+  step?: number
 ): Promise<Plan> {
   const agent = mastra.getAgent("plannerAgent");
-  return planFn(agent, goal, o0, onEvent, invocation);
+  return planFn(agent, goal, o0, onEvent, invocation, step);
 }
 
 export function propose(

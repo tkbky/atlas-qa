@@ -1,4 +1,9 @@
-import type { Observation, Affordance } from "../core/types.js";
+import type {
+  Observation,
+  Affordance,
+  AtlasEventCallback,
+  AgentRationale,
+} from "../core/types.js";
 import type { Agent } from "@mastra/core/agent";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
@@ -99,4 +104,22 @@ Be specific and action-oriented. This will help the agent predict future states.
     // Fallback to simple delta
     return `${before.title} -> ${after.title} via ${action.description}`;
   }
+}
+
+export async function emitRationaleEvent(
+  onEvent: AtlasEventCallback | undefined,
+  rationale: AgentRationale,
+  step?: number
+): Promise<void> {
+  if (!onEvent) {
+    return;
+  }
+  await onEvent({
+    type: "rationale",
+    step,
+    rationale: {
+      ...rationale,
+      step: rationale.step ?? step,
+    },
+  });
 }

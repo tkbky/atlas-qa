@@ -40,11 +40,13 @@ export function RunList({
         const statusColor =
           run.status === "running"
             ? "#ffb000"
-            : run.status === "completed"
-              ? "#00ff00"
-              : run.status === "paused"
-                ? "#8888ff"
-                : "#ff4444";
+            : run.status === "stopping"
+              ? "#ff8800"
+              : run.status === "completed"
+                ? "#00ff00"
+                : run.status === "paused"
+                  ? "#8888ff"
+                  : "#ff4444";
 
         return (
           <div
@@ -131,6 +133,22 @@ export function RunList({
                   }}
                 >
                   Stop
+                </button>
+              )}
+              {run.status === "stopping" && (
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  disabled
+                  style={{
+                    border: "1px solid #333",
+                    backgroundColor: "#331a00",
+                    color: "#ffb000",
+                    fontSize: "10px",
+                    padding: "2px 6px",
+                    cursor: "not-allowed",
+                  }}
+                >
+                  Stopping…
                 </button>
               )}
             </div>

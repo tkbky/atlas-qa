@@ -9,6 +9,7 @@ import type {
   AtlasEvent,
   InputState,
   RecentAction,
+  AgentRationale,
 } from "@atlas-core/core/types.js";
 import type { SemanticRule } from "@atlas-core/memory/atlas-memory.js";
 
@@ -22,6 +23,7 @@ export type {
   AtlasEvent,
   InputState,
   RecentAction,
+  AgentRationale,
 };
 
 export type StepData = {
@@ -43,10 +45,11 @@ export type StepData = {
     correctState?: "start" | "end" | "intermediate";
   };
   generatedTest?: string;
+  rationales?: AgentRationale[];
 };
 
 export type RunState = {
-  status: "idle" | "running" | "completed" | "error" | "paused";
+  status: "idle" | "running" | "stopping" | "completed" | "error" | "paused";
   mode: "goal" | "flow-discovery";
   goal: string;
   startUrl: string;
@@ -55,6 +58,7 @@ export type RunState = {
   currentStep: number;
   cognitiveMap: Transition[];
   semanticRules: string;
+  globalRationales?: AgentRationale[];
   errorMessage?: string;
   endedReason?: string;
   flowAnalysis?: {
@@ -82,7 +86,7 @@ export type RunSummary = {
   env: "LOCAL" | "BROWSERBASE";
   beamSize: number;
   maxSteps: number;
-  status: "running" | "completed" | "error" | "paused";
+  status: "running" | "stopping" | "completed" | "error" | "paused";
   createdAt: string;
   updatedAt: string;
   endedReason?: string;

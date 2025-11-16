@@ -4,6 +4,7 @@ import type { Memory } from "@mastra/memory";
 import type { Observation, AtlasEventCallback } from "../core/types.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
+import { emitRationaleEvent } from "./helpers.js";
 
 export function createFlowAnalysisAgent(memory: Memory): Agent {
   return new Agent({
@@ -74,6 +75,22 @@ ${pageText.slice(0, 2000)}
       analysis: result || "intermediate",
     });
   }
+
+  await emitRationaleEvent(
+    onEvent,
+    {
+      agent: "flow-analysis",
+      step,
+      title: "Flow state analysis",
+      rationale:
+        res.text?.trim() ||
+        JSON.stringify(res.object ?? {}, null, 2) ||
+        "Flow analysis agent returned no rationale.",
+      prompt,
+      output: JSON.stringify(res.object ?? {}, null, 2),
+    },
+    step
+  );
 
   return result || "intermediate";
 }

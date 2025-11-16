@@ -5,6 +5,7 @@ import type { Observation, Plan, AtlasEventCallback } from "../core/types.js";
 import { logInfo } from "../utils/logger.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
+import { emitRationaleEvent } from "./helpers.js";
 
 export function createPlannerAgent(memory: Memory): Agent {
   return new Agent({
@@ -35,15 +36,17 @@ export async function plan(
   goal: string,
   o0: Observation,
   onEvent?: AtlasEventCallback,
-  invocation?: AgentInvocationOptions
+  invocation?: AgentInvocationOptions,
+  step?: number
 ): Promise<Plan> {
   logInfo("Planner agent invoked", { goal, url: o0.url, title: o0.title });
+  const userPrompt = `Goal: ${goal}\nStart: ${o0.url} | ${o0.title}`;
   const res = await agent.generate(
     [
       { role: "system", content: "Return JSON only." },
       {
         role: "user",
-        content: `Goal: ${goal}\nStart: ${o0.url} | ${o0.title}`,
+        content: userPrompt,
       },
     ],
     withAgentInvocationOptions(
@@ -58,6 +61,16 @@ export async function plan(
   if (onEvent) {
     await onEvent({ type: "plan", plan: planResult });
   }
+
+  await emitRationaleEvent(onEvent, {
+    agent: "planner",
+    step,
+    title: step !== undefined ? "Plan update" : "Initial plan",
+    rationale:
+      res.text?.trim() || JSON.stringify(planResult, null, 2) || "(no rationale)",
+    prompt: userPrompt,
+    output: JSON.stringify(planResult, null, 2),
+  }, step);
 
   return planResult;
 }

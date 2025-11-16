@@ -5,6 +5,7 @@ import type { Observation, AtlasEventCallback } from "../core/types.js";
 import { AtlasMemory } from "../memory/atlas-memory.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
+import { emitRationaleEvent } from "./helpers.js";
 
 export function createJudgeAgent(memory: Memory): Agent {
   return new Agent({
@@ -103,6 +104,23 @@ Respond with 'true' to END exploration (goal achieved), or 'false' to CONTINUE e
       decision: decisionObject,
     });
   }
+
+  await emitRationaleEvent(
+    onEvent,
+    {
+      agent: "judge",
+      step,
+      title: "Judge decision",
+      rationale:
+        res.text?.trim() ||
+        JSON.stringify(res.object ?? {}, null, 2) ||
+        "Judge agent did not provide reasoning.",
+      prompt,
+      output: JSON.stringify(res.object ?? {}, null, 2),
+      relatedAction: result ? "Flow concluded" : "Continue exploration",
+    },
+    step
+  );
 
   return result;
 }

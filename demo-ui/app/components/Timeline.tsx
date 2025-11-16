@@ -418,6 +418,135 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                   </Section>
                 )}
 
+                {/* Agent Rationales */}
+                {step.rationales && step.rationales.length > 0 && (
+                  <Section title="Agent Rationales">
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {step.rationales.map((rationale, idx) => (
+                        <div
+                          key={`${rationale.agent}-${idx}-${rationale.title ?? "log"}`}
+                          style={{
+                            padding: "8px",
+                            border: "1px solid #333",
+                            backgroundColor: "#000",
+                            fontSize: "11px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: "8px",
+                              marginBottom: "6px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: "#ffb000",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                              }}
+                            >
+                              {rationale.agent}
+                            </span>
+                            {rationale.title && (
+                              <span
+                                style={{
+                                  color: "#888",
+                                  fontStyle: "italic",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {rationale.title}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              color: "#00ff00",
+                              whiteSpace: "pre-wrap",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {rationale.rationale}
+                          </div>
+                          {rationale.relatedAction && (
+                            <div
+                              style={{
+                                color: "#888",
+                                marginTop: "6px",
+                                fontStyle: "italic",
+                              }}
+                            >
+                              focus: {rationale.relatedAction}
+                            </div>
+                          )}
+                          {(rationale.prompt || rationale.output) && (
+                            <div
+                              style={{
+                                marginTop: "8px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "6px",
+                              }}
+                            >
+                              {rationale.prompt && (
+                                <details>
+                                  <summary
+                                    style={{
+                                      cursor: "pointer",
+                                      color: "#888",
+                                    }}
+                                  >
+                                    view prompt
+                                  </summary>
+                                  <pre
+                                    style={{
+                                      marginTop: "4px",
+                                      backgroundColor: "#0a0a0a",
+                                      padding: "8px",
+                                      border: "1px solid #222",
+                                      color: "#00ff00",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {rationale.prompt}
+                                  </pre>
+                                </details>
+                              )}
+                              {rationale.output && (
+                                <details>
+                                  <summary
+                                    style={{
+                                      cursor: "pointer",
+                                      color: "#888",
+                                    }}
+                                  >
+                                    view output
+                                  </summary>
+                                  <pre
+                                    style={{
+                                      marginTop: "4px",
+                                      backgroundColor: "#0a0a0a",
+                                      padding: "8px",
+                                      border: "1px solid #222",
+                                      color: "#00ff00",
+                                      whiteSpace: "pre-wrap",
+                                    }}
+                                  >
+                                    {rationale.output}
+                                  </pre>
+                                </details>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
                 {/* Selected Action */}
                 {step.selectedAction && (
                   <Section title="Selected Action">

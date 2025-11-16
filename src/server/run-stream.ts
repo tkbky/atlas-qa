@@ -22,7 +22,9 @@ export async function handleRunStream(req: Request, res: Response) {
     return;
   }
 
-  if (run.status !== "running" && run.status !== "paused") {
+  const streamable =
+    run.status === "running" || run.status === "paused" || run.status === "stopping";
+  if (!streamable) {
     writeSse(res, "error", {
       type: "error",
       message: `Run ${runId} is not running`,

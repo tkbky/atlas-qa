@@ -11,6 +11,7 @@ import type {
 } from "../core/types.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
+import { emitRationaleEvent } from "./helpers.js";
 
 export function createCriticAgent(memory: Memory): Agent {
   return new Agent({
@@ -124,6 +125,24 @@ Set goalMet=true if the goal is fully achieved based on recent actions and curre
   if (onEvent && step !== undefined) {
     await onEvent({ type: "critique", step, prompt, critique });
   }
+
+  await emitRationaleEvent(
+    onEvent,
+    {
+      agent: "critic",
+      step,
+      title: "Critic evaluation",
+      rationale:
+        res.text?.trim() ||
+        JSON.stringify(critique, null, 2) ||
+        "Critic did not provide an explanation.",
+      prompt,
+      output: JSON.stringify(critique, null, 2),
+      relatedAction:
+        candidates[critique.chosenIndex]?.action.description ?? undefined,
+    },
+    step
+  );
 
   return critique;
 }

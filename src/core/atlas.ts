@@ -267,7 +267,7 @@ export async function runAtlas(
       P = await plan(
         goal,
         o,
-        onEvent,
+        emitEvent,
         buildInvocationOptions("planner", undefined, "initial")
       );
       logInfo("Initial plan generated", { plan: P });
@@ -477,8 +477,9 @@ export async function runAtlas(
             P = await plan(
               goal,
               o,
-              onEvent,
-              buildInvocationOptions("planner", t, "retry")
+              stepEventCallback,
+              buildInvocationOptions("planner", t, "retry"),
+              t
             );
             continue;
           }
@@ -533,8 +534,9 @@ export async function runAtlas(
           P = await plan(
             goal,
             o,
-            onEvent,
-            buildInvocationOptions("planner", t, "fallback")
+            stepEventCallback,
+            buildInvocationOptions("planner", t, "fallback"),
+            t
           );
           continue;
         }
@@ -695,8 +697,9 @@ export async function runAtlas(
         P = await plan(
           goal,
           oNext,
-          onEvent,
-          buildInvocationOptions("planner", t, "replan")
+          stepEventCallback,
+          buildInvocationOptions("planner", t, "replan"),
+          t
         );
         logInfo("Plan updated", { step: t, plan: P });
 

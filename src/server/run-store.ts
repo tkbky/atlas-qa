@@ -7,7 +7,7 @@ import type { AtlasRunArtifacts, AtlasCheckpoint } from "../core/atlas.js";
 const DEFAULT_RUN_DIR =
   process.env.ATLAS_RUN_DIR ?? path.resolve(process.cwd(), ".atlas", "runs");
 
-export type RunStatus = "running" | "paused" | "completed" | "error";
+export type RunStatus = "running" | "paused" | "stopping" | "completed" | "error";
 
 export type StoredRunEvent = AtlasEvent & { timestamp: string };
 

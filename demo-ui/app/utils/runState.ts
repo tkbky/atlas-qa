@@ -1,4 +1,10 @@
-import type { AtlasEvent, Plan, RunState, StepData } from "../types";
+import type {
+  AgentRationale,
+  AtlasEvent,
+  Plan,
+  RunState,
+  StepData,
+} from "../types";
 
 const EMPTY_PLAN: Plan = { subgoals: [] };
 
@@ -11,6 +17,7 @@ const baseState: RunState = {
   currentStep: -1,
   cognitiveMap: [],
   semanticRules: "",
+  globalRationales: [],
   flowAnalysis: {
     currentState: null,
     judgeDecisions: [],
@@ -24,6 +31,7 @@ export function createInitialRunState(partial: Partial<RunState> = {}): RunState
     ...partial,
     steps: partial.steps ?? [],
     cognitiveMap: partial.cognitiveMap ?? [],
+    globalRationales: partial.globalRationales ?? [],
     flowAnalysis: {
       currentState: flowAnalysis?.currentState ?? null,
       judgeDecisions: flowAnalysis?.judgeDecisions ?? [],
@@ -54,6 +62,21 @@ const upsertStep = (
   return [...steps, nextStep].sort((a, b) => a.step - b.step);
 };
 
+const appendRationaleToStep = (
+  steps: StepData[],
+  step: number,
+  rationale: AgentRationale,
+  state: RunState
+) => {
+  const existing = steps.find((s) => s.step === step)?.rationales ?? [];
+  return upsertStep(
+    steps,
+    step,
+    { rationales: [...existing, rationale] },
+    state
+  );
+};
+
 export function applyEventToRunState(state: RunState, event: AtlasEvent): RunState {
   switch (event.type) {
     case "init":
@@ -79,6 +102,22 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
           { semanticRules: event.rules, logicalStep: event.logicalStep },
           state
         ),
+      };
+    case "rationale":
+      if (typeof event.step === "number") {
+        return {
+          ...state,
+          steps: appendRationaleToStep(
+            state.steps,
+            event.step,
+            event.rationale,
+            state
+          ),
+        };
+      }
+      return {
+        ...state,
+        globalRationales: [...(state.globalRationales ?? []), event.rationale],
       };
     case "propose":
       return {

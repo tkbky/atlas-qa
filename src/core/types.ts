@@ -46,6 +46,24 @@ export type Candidate = {
   action: Affordance;
 };
 
+export type AgentName =
+  | "planner"
+  | "actor"
+  | "critic"
+  | "flow-analysis"
+  | "judge"
+  | "test-generation";
+
+export type AgentRationale = {
+  agent: AgentName;
+  step?: number;
+  title: string;
+  rationale: string;
+  prompt?: string;
+  output?: string;
+  relatedAction?: string;
+};
+
 export type Critique = {
   goalMet: boolean;
   goalMetReason: string;
@@ -84,7 +102,19 @@ export type InputState = {
 export type AtlasEvent =
   | { type: "init"; goal: string; startUrl: string; opts: any }
   | { type: "plan"; plan: Plan }
-  | { type: "semantic_rules"; step: number; logicalStep?: number; url: string; rules: string }
+  | {
+      type: "semantic_rules";
+      step: number;
+      logicalStep?: number;
+      url: string;
+      rules: string;
+    }
+  | {
+      type: "rationale";
+      step?: number;
+      logicalStep?: number;
+      rationale: AgentRationale;
+    }
   | {
       type: "propose";
       step: number;

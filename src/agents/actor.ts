@@ -11,6 +11,7 @@ import type {
 } from "../core/types.js";
 import type { AgentInvocationOptions } from "./invocation.js";
 import { withAgentInvocationOptions } from "./invocation.js";
+import { emitRationaleEvent } from "./helpers.js";
 
 export function createActorAgent(memory: Memory): Agent {
   return new Agent({
@@ -154,6 +155,22 @@ Propose ${N} next actions that make progress toward the goal. Avoid repeating re
     const inputState = getInputState(o, recentActions);
     await onEvent({ type: "propose", step, prompt, candidates: C, inputState });
   }
+
+  await emitRationaleEvent(
+    onEvent,
+    {
+      agent: "actor",
+      step,
+      title: "Actor proposals",
+      rationale:
+        res.text?.trim() ||
+        JSON.stringify(C, null, 2) ||
+        "Agent returned no rationale",
+      prompt,
+      output: JSON.stringify(C, null, 2),
+    },
+    step
+  );
 
   return C.slice(0, N);
 }

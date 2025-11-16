@@ -35,6 +35,7 @@ const atlasEventTypes: Array<AtlasEvent["type"]> = [
   "analysis",
   "judgement",
   "test_generation",
+  "rationale",
   "done",
   "error",
 ];
@@ -218,7 +219,7 @@ export default function Home() {
 
   useEffect(() => {
     Object.values(runSummaries).forEach((run) => {
-      if (run.status === "running") {
+      if (run.status === "running" || run.status === "paused" || run.status === "stopping") {
         connectRunStream(run.id);
       }
     });
@@ -313,10 +314,86 @@ export default function Home() {
   }, []);
 
   const handleStopRun = useCallback(async (runId: string) => {
+    const refreshRunSummary = async () => {
+      try {
+        const latestRes = await fetch(`/api/runs/${runId}`, { cache: "no-store" });
+        if (!latestRes.ok) return;
+        const run = (await latestRes.json()) as StoredRun;
+        const { events: _events, ...summaryFields } = run;
+        setRunSummaries((prev) => ({
+          ...prev,
+          [runId]: {
+            ...(prev[runId] ?? summaryFields),
+            ...summaryFields,
+          },
+        }));
+        setRunStates((prev) => {
+          const existing = prev[runId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [runId]: {
+              ...existing,
+              status: summaryFields.status as RunState["status"],
+            },
+          };
+        });
+      } catch (refreshError) {
+        console.error(`Failed to refresh run ${runId}`, refreshError);
+      }
+    };
+
+    const applyStatusUpdate = (
+      status: RunSummary["status"],
+      extras?: { endedReason?: string; errorMessage?: string }
+    ) => {
+      setRunSummaries((prev) => {
+        const existing = prev[runId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [runId]: {
+            ...existing,
+            status,
+            endedReason: extras?.endedReason ?? existing.endedReason,
+            errorMessage: extras?.errorMessage ?? existing.errorMessage,
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      });
+      setRunStates((prev) => {
+        const existing = prev[runId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [runId]: {
+            ...existing,
+            status,
+          },
+        };
+      });
+    };
+
     try {
       const res = await fetch(`/api/runs/${runId}/stop`, { method: "POST" });
       if (!res.ok) {
+        if (res.status === 409) {
+          await refreshRunSummary();
+        }
         console.error(`Failed to stop run ${runId}: ${res.status}`);
+        return;
+      }
+      const payload: { status?: string; endedReason?: string; errorMessage?: string } | null =
+        await res
+          .json()
+          .catch(() => null);
+      if (payload?.status) {
+        applyStatusUpdate(payload.status as RunSummary["status"], {
+          endedReason: payload.endedReason,
+          errorMessage: payload.errorMessage,
+        });
+      } else {
+        applyStatusUpdate("stopping");
       }
     } catch (error) {
       console.error(`Failed to stop run ${runId}`, error);

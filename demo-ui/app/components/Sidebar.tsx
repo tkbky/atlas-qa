@@ -19,6 +19,8 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
         : ["url", "flow"]
     )
   );
+  const runLevelRationales = runState.globalRationales ?? [];
+  const latestRunRationales = runLevelRationales.slice(-4);
 
   const togglePanel = (panelId: string) => {
     const newExpanded = new Set(expandedPanels);
@@ -74,6 +76,133 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
         </div>
       </Panel>
 
+      {/* Run-level rationales */}
+      <Panel
+        title="Agent Rationales"
+        isExpanded={expandedPanels.has("rationales")}
+        onToggle={() => togglePanel("rationales")}
+      >
+        {latestRunRationales.length === 0 ? (
+          <div
+            style={{
+              fontFamily: "Consolas, Monaco, monospace",
+              fontSize: "11px",
+              color: "#555",
+              fontStyle: "italic",
+            }}
+          >
+            Agent rationales will appear here as soon as the planner responds.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            {latestRunRationales.map((rationale, idx) => (
+              <div
+                key={`${rationale.agent}-${idx}-${rationale.title ?? "run"}`}
+                style={{
+                  padding: "8px",
+                  border: "1px solid #222",
+                  backgroundColor: "#000",
+                  fontSize: "11px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "6px",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#ffb000",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    {rationale.agent}
+                  </span>
+                  {rationale.title && (
+                    <span style={{ color: "#888", fontStyle: "italic" }}>
+                      {rationale.title}
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    color: "#00ff00",
+                    lineHeight: 1.4,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {rationale.rationale}
+                </div>
+                {(rationale.prompt || rationale.output) && (
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                    }}
+                  >
+                    {rationale.prompt && (
+                      <details>
+                        <summary
+                          style={{ cursor: "pointer", color: "#888" }}
+                        >
+                          view prompt
+                        </summary>
+                        <pre
+                          style={{
+                            marginTop: "4px",
+                            backgroundColor: "#0a0a0a",
+                            padding: "8px",
+                            border: "1px solid #222",
+                            color: "#00ff00",
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {rationale.prompt}
+                        </pre>
+                      </details>
+                    )}
+                    {rationale.output && (
+                      <details>
+                        <summary
+                          style={{ cursor: "pointer", color: "#888" }}
+                        >
+                          view output
+                        </summary>
+                        <pre
+                          style={{
+                            marginTop: "4px",
+                            backgroundColor: "#0a0a0a",
+                            padding: "8px",
+                            border: "1px solid #222",
+                            color: "#00ff00",
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {rationale.output}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
       {/* Flow Panel */}
       <Panel
         title="Flow"
@@ -93,13 +222,15 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                 color:
                   runState.status === "running"
                     ? "#ffb000"
-                    : runState.status === "completed"
-                      ? "#00ff00"
-                      : runState.status === "error"
-                        ? "#ff4444"
-                        : runState.status === "paused"
-                          ? "#8888ff"
-                          : "#888",
+                    : runState.status === "stopping"
+                      ? "#ff8800"
+                      : runState.status === "completed"
+                        ? "#00ff00"
+                        : runState.status === "error"
+                          ? "#ff4444"
+                          : runState.status === "paused"
+                            ? "#8888ff"
+                            : "#888",
                 fontWeight: "bold",
               }}
             >
