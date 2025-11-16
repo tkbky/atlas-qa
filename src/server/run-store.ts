@@ -322,11 +322,18 @@ export class RunStore {
     });
   }
 
-  async updateStatus(id: string, status: RunStatus) {
+  async updateStatus(
+    id: string,
+    status: RunStatus,
+    options?: { errorMessage?: string }
+  ) {
     await this.withRunLock(id, async () => {
       const run = await this.readRunFile(id, true);
       if (!run) return;
       run.status = status;
+      if (options && "errorMessage" in options) {
+        run.errorMessage = options.errorMessage;
+      }
       run.updatedAt = new Date().toISOString();
       await this.writeRunFile(run);
     });

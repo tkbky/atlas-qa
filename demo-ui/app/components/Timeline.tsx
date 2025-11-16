@@ -54,6 +54,7 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
         const isCurrent = step.step === currentStep;
         const isLastStep = step.step === Math.max(...steps.map((s) => s.step));
         const isCompleted = isLastStep && status === "completed";
+        const displayStep = (step.logicalStep ?? step.step) + 1;
 
         return (
           <div
@@ -96,7 +97,7 @@ export function Timeline({ steps, currentStep, status }: TimelineProps) {
                     fontWeight: "bold",
                   }}
                 >
-                  Step {step.step}
+                  Step {displayStep}
                 </span>
                 {isCompleted && (
                   <span style={{ color: "#00ff00", fontSize: "10px" }}>

@@ -73,7 +73,12 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
       return {
         ...state,
         semanticRules: event.rules || state.semanticRules,
-        steps: upsertStep(state.steps, event.step, { semanticRules: event.rules }, state),
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { semanticRules: event.rules, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "propose":
       return {
@@ -83,6 +88,7 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
           state.steps,
           event.step,
           {
+            logicalStep: event.logicalStep,
             candidates: event.candidates,
             inputState: event.inputState,
           },
@@ -92,12 +98,22 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
     case "critique":
       return {
         ...state,
-        steps: upsertStep(state.steps, event.step, { critique: event.critique }, state),
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { critique: event.critique, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "selected_action":
       return {
         ...state,
-        steps: upsertStep(state.steps, event.step, { selectedAction: event.action }, state),
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { selectedAction: event.action, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "observation_after":
       return {
@@ -106,6 +122,7 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
           state.steps,
           event.step,
           {
+            logicalStep: event.logicalStep,
             observationBefore: event.before,
             observationAfter: event.after,
           },
@@ -116,7 +133,12 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
       return {
         ...state,
         cognitiveMap: [...state.cognitiveMap, event.edge],
-        steps: upsertStep(state.steps, event.step, { edge: event.edge }, state),
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { edge: event.edge, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "replan":
       return {
@@ -131,7 +153,12 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
           ...state.flowAnalysis!,
           currentState: event.analysis,
         },
-        steps: upsertStep(state.steps, event.step, { flowAnalysis: event.analysis }, state),
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { flowAnalysis: event.analysis, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "judgement":
       return {
@@ -148,12 +175,23 @@ export function applyEventToRunState(state: RunState, event: AtlasEvent): RunSta
             },
           ],
         },
-        steps: upsertStep(state.steps, event.step, { judgeDecision: event.decision }, state),
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { judgeDecision: event.decision, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "test_generation":
       return {
         ...state,
         generatedTest: event.generatedCode,
+        steps: upsertStep(
+          state.steps,
+          event.step,
+          { generatedTest: event.generatedCode, logicalStep: event.logicalStep },
+          state
+        ),
       };
     case "done":
       return {

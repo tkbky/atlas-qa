@@ -51,7 +51,7 @@ export default function Home() {
     url: "",
     q: "",
   });
-  const [pendingResumeId, setPendingResumeId] = useState<string | null>(null);
+  const [retryingRunId, setRetryingRunId] = useState<string | null>(null);
   const eventSourcesRef = useRef(new Map<string, EventSource>());
   const summariesRef = useRef(runSummaries);
   const runStatesRef = useRef(runStates);
@@ -225,15 +225,9 @@ export default function Home() {
   }, [runSummaries, connectRunStream]);
 
   const startAtlasStream = useCallback(
-    (params: URLSearchParams, opts?: { resumeSourceId?: string }) => {
+    (params: URLSearchParams) => {
       const eventSource = new EventSource(`/api/atlas/stream?${params.toString()}`);
       let currentRunId: string | null = null;
-
-      const clearPendingResume = () => {
-        if (opts?.resumeSourceId) {
-          setPendingResumeId((prev) => (prev === opts.resumeSourceId ? null : prev));
-        }
-      };
 
       eventSource.addEventListener("run_created", (evt) => {
         const payload = safeParse(evt.data);
@@ -252,7 +246,6 @@ export default function Home() {
         setActiveRunId(run.id);
         currentRunId = run.id;
         eventSourcesRef.current.set(run.id, eventSource);
-        clearPendingResume();
       });
 
       atlasEventTypes.forEach((eventName) => {
@@ -265,7 +258,6 @@ export default function Home() {
         console.error(
           `EventSource connection issue for ${currentRunId ?? "pending-run"}`
         );
-        clearPendingResume();
       };
     },
     [handleAtlasEvent]
@@ -293,14 +285,32 @@ export default function Home() {
     [startAtlasStream]
   );
 
-  const handleResumeRun = useCallback(
-    (runId: string) => {
-      setPendingResumeId(runId);
-      const params = new URLSearchParams({ resumeFrom: runId });
-      startAtlasStream(params, { resumeSourceId: runId });
-    },
-    [startAtlasStream]
-  );
+  const handleResumeRun = useCallback(async (runId: string) => {
+    try {
+      setRetryingRunId(runId);
+      const res = await fetch(`/api/runs/${runId}/retry`, { method: "POST" });
+      if (!res.ok) {
+        console.error(`Failed to retry run ${runId}: ${res.status}`);
+        return;
+      }
+      setRunSummaries((prev) => {
+        const existing = prev[runId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [runId]: {
+            ...existing,
+            status: "running",
+            errorMessage: undefined,
+          },
+        };
+      });
+    } catch (error) {
+      console.error(`Failed to retry run ${runId}`, error);
+    } finally {
+      setRetryingRunId((prev) => (prev === runId ? null : prev));
+    }
+  }, []);
 
   const handleStopRun = useCallback(async (runId: string) => {
     try {
@@ -330,14 +340,14 @@ export default function Home() {
 
   const selectedRunState = activeRunId ? runStates[activeRunId] : undefined;
   const selectedRunSummary = activeRunId ? runSummaries[activeRunId] : undefined;
+  const lastStepRecord =
+    selectedRunState?.steps.length
+      ? selectedRunState.steps[selectedRunState.steps.length - 1]
+      : undefined;
   const retryStep =
-    selectedRunSummary?.currentStep ??
-    selectedRunState?.currentStep ??
-    (selectedRunState?.steps.length
-      ? selectedRunState.steps[selectedRunState.steps.length - 1]?.step ?? 0
-      : 0);
+    (lastStepRecord?.logicalStep ?? lastStepRecord?.step ?? 0) + 1;
   const canRetry = Boolean(activeRunId && selectedRunState?.status === "error");
-  const retryDisabled = Boolean(activeRunId && pendingResumeId === activeRunId);
+  const retryDisabled = Boolean(activeRunId && retryingRunId === activeRunId);
   const runsForList = Object.values(runSummaries);
 
   return (

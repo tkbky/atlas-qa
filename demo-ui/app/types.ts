@@ -26,6 +26,7 @@ export type {
 
 export type StepData = {
   step: number;
+  logicalStep?: number;
   plan: Plan;
   inputState?: InputState;
   candidates?: Candidate[];

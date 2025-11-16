@@ -84,34 +84,44 @@ export type InputState = {
 export type AtlasEvent =
   | { type: "init"; goal: string; startUrl: string; opts: any }
   | { type: "plan"; plan: Plan }
-  | { type: "semantic_rules"; step: number; url: string; rules: string }
+  | { type: "semantic_rules"; step: number; logicalStep?: number; url: string; rules: string }
   | {
       type: "propose";
       step: number;
+      logicalStep?: number;
       prompt: string;
       candidates: Candidate[];
       inputState: InputState;
     }
-  | { type: "critique"; step: number; prompt: string; critique: Critique }
-  | { type: "selected_action"; step: number; action: Affordance }
-  | { type: "action_executed"; step: number; action: Affordance }
+  | {
+      type: "critique";
+      step: number;
+      logicalStep?: number;
+      prompt: string;
+      critique: Critique;
+    }
+  | { type: "selected_action"; step: number; logicalStep?: number; action: Affordance }
+  | { type: "action_executed"; step: number; logicalStep?: number; action: Affordance }
   | {
       type: "observation_after";
       step: number;
+      logicalStep?: number;
       before: Observation;
       after: Observation;
     }
-  | { type: "map_update"; step: number; edge: Transition }
-  | { type: "replan"; step: number; reason: string; plan: Plan }
+  | { type: "map_update"; step: number; logicalStep?: number; edge: Transition }
+  | { type: "replan"; step: number; logicalStep?: number; reason: string; plan: Plan }
   | {
       type: "analysis";
       step: number;
+      logicalStep?: number;
       prompt: string;
       analysis: "start" | "end" | "intermediate";
     }
   | {
       type: "judgement";
       step: number;
+      logicalStep?: number;
       prompt: string;
       decision: {
         isCorrect: boolean;
@@ -122,6 +132,7 @@ export type AtlasEvent =
   | {
       type: "test_generation";
       step: number;
+      logicalStep?: number;
       prompt: string;
       generatedCode: string;
     }

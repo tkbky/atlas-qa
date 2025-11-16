@@ -4,6 +4,7 @@ import { runStore } from "./run-store.js";
 import { handleKnowledgeRequest } from "./knowledge.js";
 import { handleRunStream } from "./run-stream.js";
 import { handleRunStop } from "./run-stop.js";
+import { launchRunExecution } from "./run-launcher.js";
 import { pauseRun, resumeRun, setRunBudget } from "./run-events.js";
 
 export function setupRoutes(app: Express) {
@@ -71,6 +72,47 @@ export function setupRoutes(app: Express) {
     }
     await runStore.updateMaxSteps(runId, maxSteps);
     res.json({ runId, maxSteps });
+  });
+
+  app.post("/api/runs/:id/retry", async (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const run = await runStore.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: `Run ${runId} not found` });
+      return;
+    }
+    if (run.status === "running") {
+      res.status(409).json({ error: "Run is already running" });
+      return;
+    }
+    if (!run.checkpoint) {
+      res.status(400).json({ error: "Run has no checkpoint to resume from" });
+      return;
+    }
+    const checkpoint = JSON.parse(JSON.stringify(run.checkpoint));
+    const lastLogical =
+      checkpoint.steps.at(-1)?.logicalStep ??
+      checkpoint.steps.at(-1)?.step ??
+      0;
+    const storedNext =
+      typeof checkpoint.nextLogicalStep === "number"
+        ? checkpoint.nextLogicalStep
+        : lastLogical + 1;
+    checkpoint.nextLogicalStep = Math.max(0, storedNext - 1);
+    await runStore.updateStatus(runId, "running", { errorMessage: undefined });
+    res.json({ status: "running" });
+    launchRunExecution({
+      runId,
+      goal: run.goal,
+      startUrl: run.startUrl,
+      env: run.env,
+      beamSize: run.beamSize,
+      maxSteps: run.maxSteps,
+      checkpoint,
+      runLabel: runId,
+    }).catch((error) => {
+      console.error(`Failed to restart run ${runId}`, error);
+    });
   });
 
   app.get("/api/runs", async (_req: Request, res: Response) => {

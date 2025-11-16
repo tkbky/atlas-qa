@@ -39,6 +39,12 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
 
   const totalSteps = runState.steps.length;
   const maxSteps = 15; // Could be passed as prop if needed
+  const lastStepRecord =
+    runState.steps.length > 0
+      ? runState.steps[runState.steps.length - 1]
+      : null;
+  const currentDisplayStep =
+    (lastStepRecord?.logicalStep ?? lastStepRecord?.step ?? -1) + 1;
 
   return (
     <div
@@ -110,7 +116,7 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
           <div style={{ marginBottom: "8px" }}>
             <span style={{ color: "#888" }}>step:</span>{" "}
             <span style={{ color: "#00ff00" }}>
-              {runState.currentStep >= 0 ? runState.currentStep : 0}/{maxSteps}
+              {currentDisplayStep > 0 ? currentDisplayStep : 0}/{maxSteps}
             </span>
           </div>
           <div style={{ marginBottom: "8px" }}>
@@ -158,7 +164,9 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                     letterSpacing: "0.08em",
                   }}
                 >
-                  {retryDisabled ? "Retrying..." : `Retry from step #${Math.max(0, retryStep ?? 0)}`}
+                  {retryDisabled
+                    ? "Retrying..."
+                    : `Retry from step #${retryStep ?? Math.max(currentDisplayStep, 1)}`}
                 </button>
               )}
             </div>
