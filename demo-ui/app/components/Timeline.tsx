@@ -6,7 +6,7 @@ import type { StepData } from "../types";
 type TimelineProps = {
   steps: StepData[];
   currentStep: number;
-  status?: "idle" | "running" | "completed" | "error";
+  status?: "idle" | "running" | "completed" | "error" | "paused";
 };
 
 export function Timeline({ steps, currentStep, status }: TimelineProps) {

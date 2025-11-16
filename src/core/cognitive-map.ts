@@ -125,4 +125,12 @@ export class CognitiveMap {
   snapshot(): Transition[] {
     return Array.from(this.edges.values()).map(tr => JSON.parse(JSON.stringify(tr)) as Transition);
   }
+
+  hydrateSnapshot(transitions: Transition[]) {
+    for (const tr of transitions) {
+      const k = `${tr.fromKey}>>${tr.actionKey}`;
+      this.edges.set(k, JSON.parse(JSON.stringify(tr)) as Transition);
+      this.hydratedHosts.add(this.host(tr.to.url));
+    }
+  }
 }

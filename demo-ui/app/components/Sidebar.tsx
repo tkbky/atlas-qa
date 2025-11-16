@@ -6,9 +6,12 @@ import { CognitiveMapView } from "./CognitiveMapView";
 
 type SidebarProps = {
   runState: RunState;
+  onRetry?: () => void;
+  retryStep?: number;
+  retryDisabled?: boolean;
 };
 
-export function Sidebar({ runState }: SidebarProps) {
+export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: SidebarProps) {
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
     new Set(
       runState.mode === "flow-discovery"
@@ -88,7 +91,9 @@ export function Sidebar({ runState }: SidebarProps) {
                       ? "#00ff00"
                       : runState.status === "error"
                         ? "#ff4444"
-                        : "#888",
+                        : runState.status === "paused"
+                          ? "#8888ff"
+                          : "#888",
                 fontWeight: "bold",
               }}
             >
@@ -112,6 +117,53 @@ export function Sidebar({ runState }: SidebarProps) {
             <span style={{ color: "#888" }}>total actions:</span>{" "}
             <span style={{ color: "#00ff00" }}>{totalSteps}</span>
           </div>
+          {runState.status === "error" && (
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "10px",
+                border: "1px solid #442222",
+                backgroundColor: "#1a0000",
+                borderRadius: "4px",
+              }}
+            >
+              <div
+                style={{
+                  color: "#ff7777",
+                  fontWeight: "bold",
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  marginBottom: "6px",
+                }}
+              >
+                Last error
+              </div>
+              <div style={{ color: "#ffb0b0", fontSize: "11px", lineHeight: 1.4 }}>
+                {runState.errorMessage || "Unknown failure"}
+              </div>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  disabled={retryDisabled}
+                  style={{
+                    marginTop: "10px",
+                    width: "100%",
+                    padding: "6px 8px",
+                    backgroundColor: retryDisabled ? "#222" : "#002200",
+                    border: "1px solid #004400",
+                    color: retryDisabled ? "#555" : "#00ff00",
+                    cursor: retryDisabled ? "not-allowed" : "pointer",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {retryDisabled ? "Retrying..." : `Retry from step #${Math.max(0, retryStep ?? 0)}`}
+                </button>
+              )}
+            </div>
+          )}
+
           {runState.goal && (
             <div style={{ marginTop: "12px" }}>
               <div style={{ color: "#888", marginBottom: "4px" }}>goal:</div>

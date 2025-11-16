@@ -3,8 +3,20 @@ export const dynamic = "force-dynamic";
 
 const apiServerUrl = process.env.ATLAS_API_URL || "http://localhost:4000";
 
-export async function GET(_request: Request, context: { params: { id: string } }) {
-  const upstreamUrl = `${apiServerUrl}/api/runs/${context.params.id}/stream`;
+import type { NextRequest } from "next/server";
+
+const runIdFromRequest = (request: NextRequest) => {
+  const segments = request.nextUrl.pathname.split("/").filter(Boolean);
+  const runsIdx = segments.findIndex((segment) => segment === "runs");
+  if (runsIdx >= 0 && runsIdx + 1 < segments.length) {
+    return segments[runsIdx + 1];
+  }
+  return segments.pop() ?? "";
+};
+
+export async function GET(request: NextRequest) {
+  const runId = runIdFromRequest(request);
+  const upstreamUrl = `${apiServerUrl}/api/runs/${runId}/stream`;
 
   try {
     const response = await fetch(upstreamUrl, {
@@ -17,7 +29,7 @@ export async function GET(_request: Request, context: { params: { id: string } }
         `event: error\ndata: ${JSON.stringify({
           type: "error",
           message: `Failed to connect to run stream (${response.status})`,
-          runId: context.params.id,
+          runId,
         })}\n\n`,
         {
           headers: {
@@ -42,7 +54,7 @@ export async function GET(_request: Request, context: { params: { id: string } }
     const data = `event: error\ndata: ${JSON.stringify({
       type: "error",
       message: `Failed to connect to run stream: ${message}`,
-      runId: context.params.id,
+      runId,
     })}\n\n`;
     return new Response(data, {
       headers: {

@@ -9,7 +9,7 @@ export async function handleRunStop(req: Request, res: Response) {
     res.status(404).json({ error: `Run ${runId} not found` });
     return;
   }
-  if (run.status !== "running") {
+  if (run.status !== "running" && run.status !== "paused") {
     res.status(400).json({ error: "Run is not currently running" });
     return;
   }

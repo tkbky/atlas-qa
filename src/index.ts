@@ -1,6 +1,13 @@
 // Core ATLAS exports
-export { runAtlas, type AtlasOptions, type AtlasRunArtifacts, type AtlasStepArtifact } from "./core/atlas.js";
+export {
+  runAtlas,
+  type AtlasOptions,
+  type AtlasRunArtifacts,
+  type AtlasStepArtifact,
+  type AtlasCheckpoint,
+} from "./core/atlas.js";
 export { CognitiveMap } from "./core/cognitive-map.js";
+export { AtlasRunControl } from "./core/run-control.js";
 
 // Type exports
 export type {

@@ -42,7 +42,9 @@ export function RunList({
             ? "#ffb000"
             : run.status === "completed"
               ? "#00ff00"
-              : "#ff4444";
+              : run.status === "paused"
+                ? "#8888ff"
+                : "#ff4444";
 
         return (
           <div
@@ -141,6 +143,18 @@ export function RunList({
               <div style={{ fontSize: "10px", marginTop: "4px" }}>
                 {new Date(run.createdAt).toLocaleTimeString()} · {run.mode}
               </div>
+              {run.status === "error" && run.errorMessage && (
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "10px",
+                    color: "#ff7777",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Error: {run.errorMessage}
+                </div>
+              )}
             </div>
           </div>
         );

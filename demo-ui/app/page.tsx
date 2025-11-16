@@ -51,6 +51,7 @@ export default function Home() {
     url: "",
     q: "",
   });
+  const [pendingResumeId, setPendingResumeId] = useState<string | null>(null);
   const eventSourcesRef = useRef(new Map<string, EventSource>());
   const summariesRef = useRef(runSummaries);
   const runStatesRef = useRef(runStates);
@@ -107,6 +108,14 @@ export default function Home() {
         })
       );
       setRunStates((prev) => ({ ...prev, [runId]: derived }));
+      const { events: _events, ...summaryFields } = run;
+      setRunSummaries((prev) => ({
+        ...prev,
+        [runId]: {
+          ...(prev[runId] ?? summaryFields),
+          ...summaryFields,
+        },
+      }));
     } catch (error) {
       console.error(`Failed to load run ${runId}`, error);
     }
@@ -170,15 +179,15 @@ export default function Home() {
         setRunSummaries((prev) => {
           const summary = prev[runId];
           if (!summary) return prev;
+          const isDoneEvent = atlasEvent.type === "done";
+          const isErrorEvent = atlasEvent.type === "error";
           return {
             ...prev,
             [runId]: {
               ...summary,
-              status: eventName === "done" ? "completed" : "error",
-              endedReason:
-                eventName === "done" ? atlasEvent.endedReason : summary.endedReason,
-              errorMessage:
-                eventName === "error" ? atlasEvent.message : summary.errorMessage,
+              status: isDoneEvent ? "completed" : "error",
+              endedReason: isDoneEvent ? atlasEvent.endedReason : summary.endedReason,
+              errorMessage: isErrorEvent ? atlasEvent.message : summary.errorMessage,
               updatedAt: new Date().toISOString(),
             },
           };
@@ -215,56 +224,83 @@ export default function Home() {
     });
   }, [runSummaries, connectRunStream]);
 
-  const handleStart = (
-    goal: string,
-    startUrl: string,
-    env: string,
-    beamSize: number,
-    maxSteps: number,
-    mode: "goal" | "flow-discovery"
-  ) => {
-    const params = new URLSearchParams({
-      goal,
-      startUrl,
-      env,
-      beamSize: beamSize.toString(),
-      maxSteps: maxSteps.toString(),
-      mode,
-    });
-    const eventSource = new EventSource(`/api/atlas/stream?${params.toString()}`);
-    let currentRunId: string | null = null;
+  const startAtlasStream = useCallback(
+    (params: URLSearchParams, opts?: { resumeSourceId?: string }) => {
+      const eventSource = new EventSource(`/api/atlas/stream?${params.toString()}`);
+      let currentRunId: string | null = null;
 
-    eventSource.addEventListener("run_created", (evt) => {
-      const payload = safeParse(evt.data);
-      if (!payload || !payload.runId) return;
-      const run: RunSummary = payload.run;
-      setRunSummaries((prev) => ({ ...prev, [run.id]: run }));
-      setRunStates((prev) => ({
-        ...prev,
-        [run.id]: createInitialRunState({
-          status: "running",
-          goal: run.goal,
-          startUrl: run.startUrl,
-          mode: run.mode,
-        }),
-      }));
-      setActiveRunId(run.id);
-      currentRunId = run.id;
-      eventSourcesRef.current.set(run.id, eventSource);
-    });
+      const clearPendingResume = () => {
+        if (opts?.resumeSourceId) {
+          setPendingResumeId((prev) => (prev === opts.resumeSourceId ? null : prev));
+        }
+      };
 
-    atlasEventTypes.forEach((eventName) => {
-      eventSource.addEventListener(eventName, (evt) =>
-        handleAtlasEvent(eventName, evt as MessageEvent, eventSource)
-      );
-    });
+      eventSource.addEventListener("run_created", (evt) => {
+        const payload = safeParse(evt.data);
+        if (!payload || !payload.runId) return;
+        const run: RunSummary = payload.run;
+        setRunSummaries((prev) => ({ ...prev, [run.id]: run }));
+        setRunStates((prev) => ({
+          ...prev,
+          [run.id]: createInitialRunState({
+            status: "running",
+            goal: run.goal,
+            startUrl: run.startUrl,
+            mode: run.mode,
+          }),
+        }));
+        setActiveRunId(run.id);
+        currentRunId = run.id;
+        eventSourcesRef.current.set(run.id, eventSource);
+        clearPendingResume();
+      });
 
-    eventSource.onerror = () => {
-      console.error(
-        `EventSource connection issue for ${currentRunId ?? "pending-run"}`
-      );
-    };
-  };
+      atlasEventTypes.forEach((eventName) => {
+        eventSource.addEventListener(eventName, (evt) =>
+          handleAtlasEvent(eventName, evt as MessageEvent, eventSource)
+        );
+      });
+
+      eventSource.onerror = () => {
+        console.error(
+          `EventSource connection issue for ${currentRunId ?? "pending-run"}`
+        );
+        clearPendingResume();
+      };
+    },
+    [handleAtlasEvent]
+  );
+
+  const handleStart = useCallback(
+    (
+      goal: string,
+      startUrl: string,
+      env: string,
+      beamSize: number,
+      maxSteps: number,
+      mode: "goal" | "flow-discovery"
+    ) => {
+      const params = new URLSearchParams({
+        goal,
+        startUrl,
+        env,
+        beamSize: beamSize.toString(),
+        maxSteps: maxSteps.toString(),
+        mode,
+      });
+      startAtlasStream(params);
+    },
+    [startAtlasStream]
+  );
+
+  const handleResumeRun = useCallback(
+    (runId: string) => {
+      setPendingResumeId(runId);
+      const params = new URLSearchParams({ resumeFrom: runId });
+      startAtlasStream(params, { resumeSourceId: runId });
+    },
+    [startAtlasStream]
+  );
 
   const handleStopRun = useCallback(async (runId: string) => {
     try {
@@ -293,6 +329,15 @@ export default function Home() {
   };
 
   const selectedRunState = activeRunId ? runStates[activeRunId] : undefined;
+  const selectedRunSummary = activeRunId ? runSummaries[activeRunId] : undefined;
+  const retryStep =
+    selectedRunSummary?.currentStep ??
+    selectedRunState?.currentStep ??
+    (selectedRunState?.steps.length
+      ? selectedRunState.steps[selectedRunState.steps.length - 1]?.step ?? 0
+      : 0);
+  const canRetry = Boolean(activeRunId && selectedRunState?.status === "error");
+  const retryDisabled = Boolean(activeRunId && pendingResumeId === activeRunId);
   const runsForList = Object.values(runSummaries);
 
   return (
@@ -380,7 +425,16 @@ export default function Home() {
           {selectedRunState ? (
             <>
               <div style={{ flexShrink: 0 }}>
-                <Sidebar runState={selectedRunState} />
+                <Sidebar
+                  runState={selectedRunState}
+                  onRetry={
+                    canRetry && activeRunId
+                      ? () => handleResumeRun(activeRunId)
+                      : undefined
+                  }
+                  retryStep={retryStep}
+                  retryDisabled={retryDisabled}
+                />
               </div>
               <div style={{ flex: 1, overflowY: "auto" }}>
                 <Timeline

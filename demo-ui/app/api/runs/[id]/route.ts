@@ -3,11 +3,20 @@ export const dynamic = "force-dynamic";
 
 const apiServerUrl = process.env.ATLAS_API_URL || "http://localhost:4000";
 
-export async function GET(
-  _request: Request,
-  context: { params: { id: string } }
-) {
-  const response = await fetch(`${apiServerUrl}/api/runs/${context.params.id}`, {
+import type { NextRequest } from "next/server";
+
+const runIdFromRequest = (request: NextRequest) => {
+  const segments = request.nextUrl.pathname.split("/").filter(Boolean);
+  const runsIdx = segments.findIndex((segment) => segment === "runs");
+  if (runsIdx >= 0 && runsIdx + 1 < segments.length) {
+    return segments[runsIdx + 1];
+  }
+  return segments.pop() ?? "";
+};
+
+export async function GET(request: NextRequest) {
+  const runId = runIdFromRequest(request);
+  const response = await fetch(`${apiServerUrl}/api/runs/${runId}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
@@ -19,9 +28,10 @@ export async function GET(
   });
 }
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
+export async function PATCH(request: NextRequest) {
   const payload = await request.text();
-  const response = await fetch(`${apiServerUrl}/api/runs/${context.params.id}`, {
+  const runId = runIdFromRequest(request);
+  const response = await fetch(`${apiServerUrl}/api/runs/${runId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: payload,

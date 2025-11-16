@@ -4,6 +4,7 @@ import { runStore } from "./run-store.js";
 import { handleKnowledgeRequest } from "./knowledge.js";
 import { handleRunStream } from "./run-stream.js";
 import { handleRunStop } from "./run-stop.js";
+import { pauseRun, resumeRun, setRunBudget } from "./run-events.js";
 
 export function setupRoutes(app: Express) {
   // Health check endpoint
@@ -16,6 +17,61 @@ export function setupRoutes(app: Express) {
 
   app.get("/api/runs/:id/stream", handleRunStream);
   app.post("/api/runs/:id/stop", handleRunStop);
+  app.post("/api/runs/:id/pause", async (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const run = await runStore.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: `Run ${runId} not found` });
+      return;
+    }
+    if (run.status !== "running") {
+      res.status(400).json({ error: "Run is not running" });
+      return;
+    }
+    const paused = pauseRun(runId);
+    if (!paused) {
+      res.status(409).json({ error: "Run controller not available" });
+      return;
+    }
+    await runStore.updateStatus(runId, "paused");
+    res.json({ status: "paused" });
+  });
+
+  app.post("/api/runs/:id/resume", async (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const run = await runStore.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: `Run ${runId} not found` });
+      return;
+    }
+    if (run.status !== "paused") {
+      res.status(400).json({ error: "Run is not paused" });
+      return;
+    }
+    const resumed = resumeRun(runId);
+    if (!resumed) {
+      res.status(409).json({ error: "Run controller not available" });
+      return;
+    }
+    await runStore.updateStatus(runId, "running");
+    res.json({ status: "running" });
+  });
+
+  app.post("/api/runs/:id/budget", async (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const maxSteps = Number(req.body?.maxSteps);
+    if (!Number.isFinite(maxSteps) || maxSteps <= 0) {
+      res.status(400).json({ error: "Invalid maxSteps" });
+      return;
+    }
+    const updated = setRunBudget(runId, maxSteps);
+    if (!updated) {
+      res.status(404).json({ error: "Run controller not available" });
+      return;
+    }
+    await runStore.updateMaxSteps(runId, maxSteps);
+    res.json({ runId, maxSteps });
+  });
 
   app.get("/api/runs", async (_req: Request, res: Response) => {
     const runs = await runStore.listRuns();

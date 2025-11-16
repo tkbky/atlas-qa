@@ -9,6 +9,7 @@ import type {
   RecentAction,
 } from "./types.js";
 import { CognitiveMap } from "./cognitive-map.js";
+import { AtlasRunControl } from "./run-control.js";
 import { WebEnv } from "../browser/index.js";
 import {
   plan,
@@ -42,6 +43,9 @@ export type AtlasOptions = {
   timeBudgetMs?: number;
   onEvent?: AtlasEventCallback;
   abortSignal?: AbortSignal;
+  control?: AtlasRunControl;
+  checkpoint?: AtlasCheckpoint;
+  onCheckpoint?: (checkpoint: AtlasCheckpoint) => Promise<void> | void;
 };
 
 export type AtlasStepArtifact = {
@@ -62,6 +66,24 @@ export type AtlasRunArtifacts = {
   finalObservation: Observation;
   cognitiveMap: Transition[];
   endedReason: string;
+};
+
+export type AtlasCheckpoint = {
+  goal: string;
+  startUrl: string;
+  env: "LOCAL" | "BROWSERBASE";
+  timestamp: string;
+  plan: Plan;
+  steps: AtlasStepArtifact[];
+  recentActions: RecentAction[];
+  currentObservation: Observation;
+  lastAction: Affordance | null;
+  cognitiveMap: Transition[];
+  stepCount: number;
+  maxSteps: number;
+  beamSize: number;
+  timeBudgetMs?: number;
+  endedReason?: string;
 };
 
 // --- progress-aware helper ---
@@ -97,6 +119,9 @@ export async function runAtlas(
     timeBudgetMs,
     onEvent,
     abortSignal,
+    control: providedControl,
+    checkpoint,
+    onCheckpoint,
   } = opts;
   const vetoThreshold = 0.0; // optional: ignore obviously bad actions from Critic
 
@@ -145,7 +170,34 @@ export async function runAtlas(
   const knowledgeStore = new AtlasKnowledgeStore();
   const M = new CognitiveMap(memory, knowledgeStore);
   const atlasMem = new AtlasMemory(memory, knowledgeStore);
-  const steps: AtlasStepArtifact[] = [];
+  if (checkpoint?.cognitiveMap?.length) {
+    M.hydrateSnapshot(checkpoint.cognitiveMap);
+  }
+  const steps: AtlasStepArtifact[] = checkpoint?.steps
+    ? checkpoint.steps.map((s) => clone(s))
+    : [];
+  let lastAction: Affordance | null = checkpoint?.lastAction
+    ? clone(checkpoint.lastAction)
+    : null;
+  const recentActions: RecentAction[] = checkpoint?.recentActions
+    ? checkpoint.recentActions.map((a) => clone(a))
+    : [];
+  const initialStep = steps.length;
+  const runControl =
+    providedControl ??
+    new AtlasRunControl({
+      maxSteps,
+      startStep: initialStep,
+      abortSignal,
+    });
+  if (abortSignal) {
+    runControl.attachAbortSignal(abortSignal);
+  }
+  if (!providedControl) {
+    runControl.updateMaxSteps(maxSteps);
+  }
+  runControl.setCurrentStep(initialStep);
+
   let runArtifacts: AtlasRunArtifacts | null = null;
   const startTime = Date.now();
   let endedReason = "max_steps_reached";
@@ -163,29 +215,68 @@ export async function runAtlas(
     logInfo("Navigated to start URL", { startUrl });
 
     let o: Observation = await web.currentObservation();
+    if (checkpoint) {
+      o = (await replayStepsToCheckpoint(web, checkpoint.steps)) ?? o;
+      logInfo("Resumed from checkpoint", {
+        stepCount: checkpoint.stepCount,
+      });
+    }
     await M.ensureDomainLoaded(o.url);
     logDebug("Initial observation captured", summarizeObservation(o));
 
-    let P = await plan(
-      goal,
-      o,
-      onEvent,
-      buildInvocationOptions("planner", undefined, "initial")
-    );
-    logInfo("Initial plan generated", { plan: P });
+    let P: Plan;
+    if (checkpoint) {
+      P = clone(checkpoint.plan);
+    } else {
+      P = await plan(
+        goal,
+        o,
+        onEvent,
+        buildInvocationOptions("planner", undefined, "initial")
+      );
+      logInfo("Initial plan generated", { plan: P });
+    }
 
-    // Track last executed action to influence subsequent proposals (e.g., avoid repeated picker clicks)
-    let lastAction: Affordance | null = null;
+    const persistCheckpoint = async () => {
+      if (!onCheckpoint) return;
+      const checkpointPayload: AtlasCheckpoint = {
+        goal,
+        startUrl,
+        env,
+        timestamp: new Date().toISOString(),
+        plan: clone(P),
+        steps: clone(steps),
+        recentActions: clone(recentActions),
+        currentObservation: clone(o),
+        lastAction: lastAction ? clone(lastAction) : null,
+        cognitiveMap: M.snapshot(),
+        stepCount: steps.length,
+        maxSteps: runControl.getMaxSteps(),
+        beamSize,
+        timeBudgetMs,
+        endedReason,
+      };
+      try {
+        await onCheckpoint(checkpointPayload);
+      } catch (error) {
+        logWarn("Failed to persist checkpoint", { error });
+      }
+    };
 
-    // Track recent actions for working memory (used by Actor and Critic)
-    const recentActions: RecentAction[] = [];
+    await persistCheckpoint();
 
-    const shouldAbort = () => abortSignal?.aborted ?? false;
-
-    for (let t = 0; t < maxSteps; t++) {
-      if (shouldAbort()) {
+    let t = runControl.getCurrentStep();
+    for (;;) {
+      await runControl.waitIfPaused();
+      if (runControl.shouldStop()) {
         endedReason = "aborted_by_user";
-        logWarn("Abort signal received, terminating run", { step: t });
+        logWarn("Run control requested stop, terminating run", { step: t });
+        break;
+      }
+      const effectiveMaxSteps = runControl.getMaxSteps();
+      if (t >= effectiveMaxSteps) {
+        endedReason = "max_steps_reached";
+        logInfo("Max steps reached", { step: t, maxSteps: effectiveMaxSteps });
         break;
       }
       logInfo("Step started", { step: t, plan: P.subgoals });
@@ -277,9 +368,9 @@ export async function runAtlas(
         uncertainties,
         buildInvocationOptions("critic", t)
       );
-      if (shouldAbort()) {
+      if (runControl.shouldStop()) {
         endedReason = "aborted_by_user";
-        logWarn("Abort signal received after critique", { step: t });
+        logWarn("Run control requested stop after critique", { step: t });
         break;
       }
       logInfo("Critique results received", { step: t, critique: critiqueRes });
@@ -539,6 +630,7 @@ export async function runAtlas(
           cognitiveMap: M.snapshot(),
           endedReason,
         };
+        await persistCheckpoint();
         break;
       }
 
@@ -570,11 +662,16 @@ export async function runAtlas(
 
       o = oNext;
       await M.ensureDomainLoaded(o.url);
+      t += 1;
+      runControl.setCurrentStep(t);
+      await persistCheckpoint();
     }
 
-    if (shouldAbort() && endedReason !== "aborted_by_user") {
+    if (runControl.shouldStop() && endedReason !== "aborted_by_user") {
       endedReason = "aborted_by_user";
     }
+
+    await persistCheckpoint();
 
     runArtifacts = {
       goal,
@@ -635,4 +732,27 @@ function summarizeObservation(o: Observation) {
     pageTextLength: o.pageText?.length ?? 0,
     pageTextPreview: o.pageText ? o.pageText.slice(0, 500) : undefined,
   };
+}
+
+async function replayStepsToCheckpoint(
+  web: WebEnv,
+  artifacts: AtlasStepArtifact[] | undefined
+): Promise<Observation | null> {
+  if (!artifacts || artifacts.length === 0) {
+    return null;
+  }
+  let latest: Observation | null = null;
+  for (const artifact of artifacts) {
+    try {
+      await web.act(artifact.action);
+    } catch (error) {
+      logWarn("Failed to replay checkpoint action", {
+        step: artifact.step,
+        error,
+      });
+      break;
+    }
+    latest = await web.currentObservation();
+  }
+  return latest;
 }

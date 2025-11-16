@@ -45,7 +45,7 @@ export type StepData = {
 };
 
 export type RunState = {
-  status: "idle" | "running" | "completed" | "error";
+  status: "idle" | "running" | "completed" | "error" | "paused";
   mode: "goal" | "flow-discovery";
   goal: string;
   startUrl: string;
@@ -81,15 +81,21 @@ export type RunSummary = {
   env: "LOCAL" | "BROWSERBASE";
   beamSize: number;
   maxSteps: number;
-  status: "running" | "completed" | "error";
+  status: "running" | "completed" | "error" | "paused";
   createdAt: string;
   updatedAt: string;
   endedReason?: string;
   errorMessage?: string;
+  currentStep?: number;
+  resumedFromId?: string;
 };
 
 export type StoredRun = RunSummary & {
   events: Array<(AtlasEvent & { runId?: string }) & { timestamp: string }>;
+  checkpoint?: {
+    stepCount: number;
+    timestamp?: string;
+  };
 };
 
 export type KnowledgeEntry = {

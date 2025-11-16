@@ -2,12 +2,12 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AtlasEvent } from "../core/types.js";
-import type { AtlasRunArtifacts } from "../core/atlas.js";
+import type { AtlasRunArtifacts, AtlasCheckpoint } from "../core/atlas.js";
 
 const DEFAULT_RUN_DIR =
   process.env.ATLAS_RUN_DIR ?? path.resolve(process.cwd(), ".atlas", "runs");
 
-export type RunStatus = "running" | "completed" | "error";
+export type RunStatus = "running" | "paused" | "completed" | "error";
 
 export type StoredRunEvent = AtlasEvent & { timestamp: string };
 
@@ -25,11 +25,14 @@ export type RunSummary = {
   updatedAt: string;
   endedReason?: string;
   errorMessage?: string;
+  currentStep?: number;
+  resumedFromId?: string;
 };
 
 export type StoredRun = RunSummary & {
   events: StoredRunEvent[];
   artifacts?: AtlasRunArtifacts;
+  checkpoint?: AtlasCheckpoint;
 };
 
 export type CreateRunOptions = {
@@ -40,6 +43,10 @@ export type CreateRunOptions = {
   beamSize: number;
   maxSteps: number;
   name?: string;
+  status?: RunStatus;
+  checkpoint?: AtlasCheckpoint;
+  currentStep?: number;
+  resumedFromId?: string;
 };
 
 const serialize = (value: unknown) => JSON.stringify(value, null, 2);
@@ -249,10 +256,13 @@ export class RunStore {
       env: opts.env,
       beamSize: opts.beamSize,
       maxSteps: opts.maxSteps,
-      status: "running",
+      status: opts.status ?? "running",
       createdAt: now,
       updatedAt: now,
       events: [],
+      checkpoint: opts.checkpoint,
+      currentStep: opts.currentStep ?? opts.checkpoint?.stepCount ?? 0,
+      resumedFromId: opts.resumedFromId,
     };
     await this.writeRunFile(run);
     return run;
@@ -278,6 +288,17 @@ export class RunStore {
     });
   }
 
+  async saveCheckpoint(id: string, checkpoint: AtlasCheckpoint) {
+    await this.withRunLock(id, async () => {
+      const run = await this.readRunFile(id, true);
+      if (!run) return;
+      run.checkpoint = checkpoint;
+      run.currentStep = checkpoint.stepCount;
+      run.updatedAt = new Date().toISOString();
+      await this.writeRunFile(run);
+    });
+  }
+
   async markCompleted(id: string, artifacts: AtlasRunArtifacts) {
     await this.withRunLock(id, async () => {
       const run = await this.readRunFile(id, true);
@@ -296,6 +317,26 @@ export class RunStore {
       if (!run) return;
       run.status = "error";
       run.errorMessage = message;
+      run.updatedAt = new Date().toISOString();
+      await this.writeRunFile(run);
+    });
+  }
+
+  async updateStatus(id: string, status: RunStatus) {
+    await this.withRunLock(id, async () => {
+      const run = await this.readRunFile(id, true);
+      if (!run) return;
+      run.status = status;
+      run.updatedAt = new Date().toISOString();
+      await this.writeRunFile(run);
+    });
+  }
+
+  async updateMaxSteps(id: string, maxSteps: number) {
+    await this.withRunLock(id, async () => {
+      const run = await this.readRunFile(id, true);
+      if (!run) return;
+      run.maxSteps = maxSteps;
       run.updatedAt = new Date().toISOString();
       await this.writeRunFile(run);
     });
@@ -339,9 +380,10 @@ export class RunStore {
   }
 
   private toSummary(run: StoredRun): RunSummary {
-    const { events, artifacts, ...summary } = run;
+    const { events, artifacts, checkpoint, ...summary } = run;
     void events;
     void artifacts;
+    void checkpoint;
     return summary;
   }
 }

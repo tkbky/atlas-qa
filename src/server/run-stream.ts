@@ -22,7 +22,7 @@ export async function handleRunStream(req: Request, res: Response) {
     return;
   }
 
-  if (run.status !== "running") {
+  if (run.status !== "running" && run.status !== "paused") {
     writeSse(res, "error", {
       type: "error",
       message: `Run ${runId} is not running`,
