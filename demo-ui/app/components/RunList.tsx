@@ -33,35 +33,37 @@ export function RunList({
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
       {sortedRuns.map((run) => {
         const isActive = run.id === activeRunId;
         const isEditing = editingId === run.id;
         const statusColor =
           run.status === "running"
-            ? "#ffb000"
+            ? "var(--color-warning)"
             : run.status === "stopping"
-              ? "#ff8800"
+              ? "var(--color-warning)"
               : run.status === "completed"
-                ? "#00ff00"
+                ? "var(--color-accent)"
                 : run.status === "paused"
-                  ? "#8888ff"
-                  : "#ff4444";
+                  ? "var(--color-info)"
+                  : "var(--color-danger)";
 
         return (
           <div
             key={run.id}
             style={{
-              border: isActive ? "1px solid #00ff00" : "1px solid #222",
-              padding: "10px",
-              backgroundColor: isActive ? "#111" : "#050505",
+              border: isActive
+                ? "1px solid var(--color-accent)"
+                : "1px solid var(--color-divider)",
+              padding: "var(--space-lg)",
+              backgroundColor: isActive ? "var(--color-surface-raised)" : "var(--color-background)",
               cursor: "pointer",
-              fontFamily: "Consolas, Monaco, monospace",
-              fontSize: "12px",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--font-size-sm)",
             }}
             onClick={() => onSelect(run.id)}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
               <span
                 style={{
                   width: "8px",
@@ -88,15 +90,15 @@ export function RunList({
                   }}
                   style={{
                     flex: 1,
-                    backgroundColor: "#000",
-                    border: "1px solid #333",
-                    color: "#00ff00",
-                    padding: "2px 4px",
-                    fontFamily: "inherit",
+                    backgroundColor: "var(--color-background)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-accent)",
+                    padding: "var(--space-xxs) var(--space-xs)",
+                    fontFamily: "var(--font-mono)",
                   }}
                 />
               ) : (
-                <span style={{ flex: 1, color: "#fff", fontWeight: "bold" }}>
+                <span style={{ flex: 1, color: "var(--color-text-primary)", fontWeight: "bold" }}>
                   {run.name}
                 </span>
               )}
@@ -109,9 +111,9 @@ export function RunList({
                 style={{
                   border: "none",
                   background: "transparent",
-                  color: "#888",
+                  color: "var(--color-text-secondary)",
                   cursor: "pointer",
-                  fontSize: "11px",
+                  fontSize: "var(--font-size-sm)",
                 }}
                 title="Rename run"
               >
@@ -124,11 +126,11 @@ export function RunList({
                     void onStop(run.id);
                   }}
                   style={{
-                    border: "1px solid #333",
-                    backgroundColor: "#2a0000",
-                    color: "#ff4444",
-                    fontSize: "10px",
-                    padding: "2px 6px",
+                    border: "1px solid var(--color-border)",
+                    backgroundColor: "var(--color-overlay)",
+                    color: "var(--color-danger)",
+                    fontSize: "var(--font-size-xs)",
+                    padding: "var(--space-xxs) var(--space-sm)",
                     cursor: "pointer",
                   }}
                 >
@@ -140,11 +142,11 @@ export function RunList({
                   onClick={(e) => e.stopPropagation()}
                   disabled
                   style={{
-                    border: "1px solid #333",
-                    backgroundColor: "#331a00",
-                    color: "#ffb000",
-                    fontSize: "10px",
-                    padding: "2px 6px",
+                    border: "1px solid var(--color-border)",
+                    backgroundColor: "var(--color-overlay)",
+                    color: "var(--color-warning)",
+                    fontSize: "var(--font-size-xs)",
+                    padding: "var(--space-xxs) var(--space-sm)",
                     cursor: "not-allowed",
                   }}
                 >
@@ -153,20 +155,20 @@ export function RunList({
               )}
             </div>
 
-            <div style={{ marginTop: "6px", color: "#888" }}>
-              <div style={{ fontSize: "11px" }}>{run.goal}</div>
-              <div style={{ fontSize: "10px", marginTop: "4px", wordBreak: "break-all" }}>
+            <div style={{ marginTop: "var(--space-sm)", color: "var(--color-text-secondary)" }}>
+              <div style={{ fontSize: "var(--font-size-sm)" }}>{run.goal}</div>
+              <div style={{ fontSize: "var(--font-size-xs)", marginTop: "var(--space-xs)", wordBreak: "break-all" }}>
                 {run.startUrl}
               </div>
-              <div style={{ fontSize: "10px", marginTop: "4px" }}>
+              <div style={{ fontSize: "var(--font-size-xs)", marginTop: "var(--space-xs)" }}>
                 {new Date(run.createdAt).toLocaleTimeString()} · {run.mode}
               </div>
               {run.status === "error" && run.errorMessage && (
                 <div
                   style={{
-                    marginTop: "6px",
-                    fontSize: "10px",
-                    color: "#ff7777",
+                    marginTop: "var(--space-sm)",
+                    fontSize: "var(--font-size-xs)",
+                    color: "var(--color-danger)",
                     lineHeight: 1.4,
                   }}
                 >
@@ -181,11 +183,11 @@ export function RunList({
       {sortedRuns.length === 0 && (
         <div
           style={{
-            padding: "12px",
+            padding: "var(--space-lg)",
             textAlign: "center",
             fontStyle: "italic",
-            color: "#555",
-            border: "1px dashed #222",
+            color: "var(--color-text-muted)",
+            border: "1px dashed var(--color-divider)",
           }}
         >
           No runs yet. Start one to populate the list.

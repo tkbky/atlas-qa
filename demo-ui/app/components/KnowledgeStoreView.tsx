@@ -24,12 +24,12 @@ export function KnowledgeStoreView({
   runs,
   onRefresh,
 }: KnowledgeStoreViewProps) {
-const updateFilter = (
-  key: keyof KnowledgeFilters,
-  value: string | null | undefined
-) => {
-  onFiltersChange({ ...filters, [key]: value });
-};
+  const updateFilter = (
+    key: keyof KnowledgeFilters,
+    value: string | null | undefined
+  ) => {
+    onFiltersChange({ ...filters, [key]: value });
+  };
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -37,11 +37,11 @@ const updateFilter = (
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: "8px",
-          marginBottom: "12px",
+          gap: "var(--space-md)",
+          marginBottom: "var(--space-lg)",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           <label style={labelStyle}>Filter by Run</label>
           <select
             value={filters.runId ?? ""}
@@ -56,7 +56,7 @@ const updateFilter = (
             ))}
           </select>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           <label style={labelStyle}>Host contains</label>
           <input
             value={filters.host ?? ""}
@@ -65,7 +65,7 @@ const updateFilter = (
             onChange={(e) => updateFilter("host", e.target.value)}
           />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           <label style={labelStyle}>URL contains</label>
           <input
             value={filters.url ?? ""}
@@ -74,9 +74,9 @@ const updateFilter = (
             onChange={(e) => updateFilter("url", e.target.value)}
           />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           <label style={labelStyle}>Text search</label>
-          <div style={{ display: "flex", gap: "6px" }}>
+          <div style={{ display: "flex", gap: "var(--space-sm)" }}>
             <input
               value={filters.q ?? ""}
               style={{ ...inputStyle, flex: 1 }}
@@ -86,11 +86,11 @@ const updateFilter = (
             <button
               onClick={onRefresh}
               style={{
-                border: "1px solid #333",
-                backgroundColor: "#0a0a0a",
-                color: "#00ff00",
-                fontFamily: "Consolas, Monaco, monospace",
-                padding: "4px 10px",
+                border: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-accent)",
+                fontFamily: "var(--font-mono)",
+                padding: "var(--space-xs) var(--space-lg)",
                 cursor: "pointer",
                 textTransform: "uppercase",
               }}
@@ -101,13 +101,13 @@ const updateFilter = (
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", border: "1px solid #222" }}>
+      <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--color-divider)" }}>
         {entries.length === 0 && (
           <div
             style={{
-              padding: "20px",
+              padding: "var(--space-xxl)",
               textAlign: "center",
-              color: "#555",
+              color: "var(--color-text-muted)",
               fontStyle: "italic",
             }}
           >
@@ -119,38 +119,38 @@ const updateFilter = (
           <div
             key={entry.host}
             style={{
-              borderBottom: "1px solid #222",
-              padding: "12px",
-              backgroundColor: "#050505",
+              borderBottom: "1px solid var(--color-divider)",
+              padding: "var(--space-lg)",
+              backgroundColor: "var(--color-background)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-              <div style={{ color: "#00ff00", fontWeight: "bold" }}>{entry.host}</div>
-              <div style={{ color: "#888", fontSize: "11px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-md)" }}>
+              <div style={{ color: "var(--color-accent)", fontWeight: "bold" }}>{entry.host}</div>
+              <div style={{ color: "var(--color-text-secondary)", fontSize: "var(--font-size-sm)" }}>
                 {entry.transitions.length} transitions · {entry.semanticRules.length} rules
               </div>
             </div>
 
             {entry.transitions.length > 0 && (
-              <div style={{ marginBottom: "12px" }}>
+              <div style={{ marginBottom: "var(--space-lg)" }}>
                 <div style={sectionLabel}>Transitions</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
                   {entry.transitions.map((transition, idx) => (
                     <div
                       key={`${transition.fromKey}-${transition.actionKey}-${idx}`}
                       style={{
-                        border: "1px solid #222",
-                        padding: "8px",
-                        backgroundColor: "#0f0f0f",
-                        fontSize: "11px",
+                        border: "1px solid var(--color-divider)",
+                        padding: "var(--space-md)",
+                        backgroundColor: "var(--color-surface-raised)",
+                        fontSize: "var(--font-size-sm)",
                       }}
                     >
-                      <div style={{ color: "#ffb000" }}>{transition.to?.title}</div>
-                      <div style={{ color: "#888", wordBreak: "break-all" }}>
+                      <div style={{ color: "var(--color-warning)" }}>{transition.to?.title}</div>
+                      <div style={{ color: "var(--color-text-secondary)", wordBreak: "break-all" }}>
                         {transition.to?.url}
                       </div>
                       {transition.delta && (
-                        <div style={{ color: "#aaa", marginTop: "4px" }}>
+                        <div style={{ color: "var(--color-text-secondary)", marginTop: "var(--space-xs)" }}>
                           {transition.delta}
                         </div>
                       )}
@@ -163,27 +163,27 @@ const updateFilter = (
             {entry.semanticRules.length > 0 && (
               <div>
                 <div style={sectionLabel}>Semantic Rules</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
                   {entry.semanticRules.map((rule) => (
                     <div
                       key={rule.id}
                       style={{
-                        border: "1px solid #222",
-                        padding: "8px",
-                        backgroundColor: "#0f0f0f",
-                        fontSize: "11px",
+                        border: "1px solid var(--color-divider)",
+                        padding: "var(--space-md)",
+                        backgroundColor: "var(--color-surface-raised)",
+                        fontSize: "var(--font-size-sm)",
                       }}
                     >
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
                         {rule.category && (
                           <span style={badgeStyle}>{rule.category}</span>
                         )}
-                        <span style={{ color: "#ffb000", textTransform: "uppercase" }}>
+                        <span style={{ color: "var(--color-warning)", textTransform: "uppercase" }}>
                           {rule.kind}
                         </span>
                       </div>
                       {rule.tags && rule.tags.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-xs)", marginTop: "var(--space-xs)" }}>
                           {rule.tags.map((tag) => (
                             <span key={tag} style={tagStyle}>
                               #{tag}
@@ -192,10 +192,10 @@ const updateFilter = (
                         </div>
                       )}
                       {rule.note && (
-                        <div style={{ color: "#aaa", marginTop: "4px" }}>{rule.note}</div>
+                        <div style={{ color: "var(--color-text-secondary)", marginTop: "var(--space-xs)" }}>{rule.note}</div>
                       )}
                       {rule.firstSeenAt && (
-                        <div style={{ color: "#555", marginTop: "4px" }}>
+                        <div style={{ color: "var(--color-text-muted)", marginTop: "var(--space-xs)" }}>
                           First seen at {rule.firstSeenAt}
                         </div>
                       )}
@@ -212,44 +212,44 @@ const updateFilter = (
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "10px",
-  color: "#888",
+  fontSize: "var(--font-size-xs)",
+  color: "var(--color-text-secondary)",
   textTransform: "uppercase",
 };
 
 const inputStyle: React.CSSProperties = {
-  border: "1px solid #333",
-  backgroundColor: "#050505",
-  color: "#00ff00",
-  fontFamily: "Consolas, Monaco, monospace",
-  padding: "6px 8px",
-  fontSize: "11px",
+  border: "1px solid var(--color-border)",
+  backgroundColor: "var(--color-background)",
+  color: "var(--color-accent)",
+  fontFamily: "var(--font-mono)",
+  padding: "var(--space-sm) var(--space-md)",
+  fontSize: "var(--font-size-sm)",
 };
 
 const sectionLabel: React.CSSProperties = {
-  color: "#888",
-  fontSize: "10px",
-  letterSpacing: "0.05em",
+  color: "var(--color-text-secondary)",
+  fontSize: "var(--font-size-xs)",
+  letterSpacing: "var(--letter-spacing-caps)",
   textTransform: "uppercase",
-  marginBottom: "6px",
+  marginBottom: "var(--space-sm)",
 };
 
 const badgeStyle: React.CSSProperties = {
-  backgroundColor: "#112c11",
-  border: "1px solid #1f7f1f",
-  color: "#7cff7c",
-  fontSize: "9px",
-  padding: "1px 4px",
-  borderRadius: "2px",
+  backgroundColor: "var(--color-accent-muted)",
+  border: "1px solid var(--color-accent)",
+  color: "var(--color-accent)",
+  fontSize: "var(--font-size-xs)",
+  padding: "1px var(--space-xs)",
+  borderRadius: "var(--radius-sm)",
   textTransform: "uppercase",
-  letterSpacing: "0.05em",
+  letterSpacing: "var(--letter-spacing-caps)",
 };
 
 const tagStyle: React.CSSProperties = {
-  backgroundColor: "#1a1a1a",
-  border: "1px solid #333",
-  color: "#bbb",
-  fontSize: "9px",
-  padding: "1px 4px",
-  borderRadius: "2px",
+  backgroundColor: "var(--color-overlay)",
+  border: "1px solid var(--color-border)",
+  color: "var(--color-text-secondary)",
+  fontSize: "var(--font-size-xs)",
+  padding: "1px var(--space-xs)",
+  borderRadius: "var(--radius-sm)",
 };

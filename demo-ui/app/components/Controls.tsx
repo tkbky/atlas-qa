@@ -38,26 +38,26 @@ export function Controls({ onStart }: ControlsProps) {
   return (
     <div style={{ padding: 0 }}>
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "16px" }}>
+        <div style={{ marginBottom: "var(--space-xl)" }}>
           <label
             style={{
               display: "block",
-              marginBottom: "8px",
-              fontSize: "11px",
-              color: "#888",
+              marginBottom: "var(--space-md)",
+              fontSize: "var(--font-size-sm)",
+              color: "var(--color-text-secondary)",
               textTransform: "uppercase",
             }}
           >
             Mode
           </label>
-          <div style={{ display: "flex", gap: "16px" }}>
+          <div style={{ display: "flex", gap: "var(--space-xl)" }}>
             <label
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "var(--space-md)",
                 cursor: "pointer",
-                fontSize: "12px",
+                fontSize: "var(--font-size-sm)",
               }}
             >
               <input
@@ -69,7 +69,7 @@ export function Controls({ onStart }: ControlsProps) {
                 }
                 style={{ cursor: "pointer" }}
               />
-              <span style={{ color: mode === "goal" ? "#00ff00" : "#888" }}>
+              <span style={{ color: mode === "goal" ? "var(--color-accent)" : "var(--color-text-secondary)" }}>
                 Goal Execution
               </span>
             </label>
@@ -77,9 +77,9 @@ export function Controls({ onStart }: ControlsProps) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "var(--space-md)",
                 cursor: "pointer",
-                fontSize: "12px",
+                fontSize: "var(--font-size-sm)",
               }}
             >
               <input
@@ -93,7 +93,7 @@ export function Controls({ onStart }: ControlsProps) {
               />
               <span
                 style={{
-                  color: mode === "flow-discovery" ? "#00ff00" : "#888",
+                  color: mode === "flow-discovery" ? "var(--color-accent)" : "var(--color-text-secondary)",
                 }}
               >
                 Flow Discovery
@@ -102,13 +102,13 @@ export function Controls({ onStart }: ControlsProps) {
           </div>
         </div>
 
-        <div style={{ marginBottom: "12px" }}>
+        <div style={{ marginBottom: "var(--space-lg)" }}>
           <label
             style={{
               display: "block",
-              marginBottom: "4px",
-              fontSize: "11px",
-              color: "#888",
+              marginBottom: "var(--space-xs)",
+              fontSize: "var(--font-size-sm)",
+              color: "var(--color-text-secondary)",
               textTransform: "uppercase",
             }}
           >
@@ -124,12 +124,12 @@ export function Controls({ onStart }: ControlsProps) {
             }
             style={{
               width: "100%",
-              padding: "6px 8px",
-              fontSize: "12px",
-              border: "1px solid #333",
-              backgroundColor: "#0a0a0a",
-              color: "#00ff00",
-              fontFamily: "Consolas, Monaco, monospace",
+              padding: "var(--space-sm) var(--space-md)",
+              fontSize: "var(--font-size-sm)",
+              border: "1px solid var(--color-border)",
+              backgroundColor: "var(--color-surface)",
+              color: "var(--color-accent)",
+              fontFamily: "var(--font-mono)",
               outline: "none",
             }}
             placeholder={
@@ -140,13 +140,13 @@ export function Controls({ onStart }: ControlsProps) {
           />
         </div>
 
-        <div style={{ marginBottom: "12px" }}>
+        <div style={{ marginBottom: "var(--space-lg)" }}>
           <label
             style={{
               display: "block",
-              marginBottom: "4px",
-              fontSize: "11px",
-              color: "#888",
+              marginBottom: "var(--space-xs)",
+              fontSize: "var(--font-size-sm)",
+              color: "var(--color-text-secondary)",
               textTransform: "uppercase",
             }}
           >
@@ -158,12 +158,12 @@ export function Controls({ onStart }: ControlsProps) {
             onChange={(e) => setStartUrl(e.target.value)}
             style={{
               width: "100%",
-              padding: "6px 8px",
-              fontSize: "12px",
-              border: "1px solid #333",
-              backgroundColor: "#0a0a0a",
-              color: "#00ff00",
-              fontFamily: "Consolas, Monaco, monospace",
+              padding: "var(--space-sm) var(--space-md)",
+              fontSize: "var(--font-size-sm)",
+              border: "1px solid var(--color-border)",
+              backgroundColor: "var(--color-surface)",
+              color: "var(--color-accent)",
+              fontFamily: "var(--font-mono)",
               outline: "none",
             }}
             placeholder="http://localhost:8000"
@@ -174,17 +174,17 @@ export function Controls({ onStart }: ControlsProps) {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "12px",
-            marginBottom: "12px",
+            gap: "var(--space-lg)",
+            marginBottom: "var(--space-lg)",
           }}
         >
           <div>
             <label
               style={{
                 display: "block",
-                marginBottom: "4px",
-                fontSize: "11px",
-                color: "#888",
+                marginBottom: "var(--space-xs)",
+                fontSize: "var(--font-size-sm)",
+                color: "var(--color-text-secondary)",
                 textTransform: "uppercase",
               }}
             >
@@ -195,12 +195,12 @@ export function Controls({ onStart }: ControlsProps) {
               onChange={(e) => setEnv(e.target.value)}
               style={{
                 width: "100%",
-                padding: "6px 8px",
-                fontSize: "12px",
-                border: "1px solid #333",
-                backgroundColor: "#0a0a0a",
-                color: "#00ff00",
-                fontFamily: "Consolas, Monaco, monospace",
+                padding: "var(--space-sm) var(--space-md)",
+                fontSize: "var(--font-size-sm)",
+                border: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-accent)",
+                fontFamily: "var(--font-mono)",
                 outline: "none",
               }}
             >
@@ -213,9 +213,9 @@ export function Controls({ onStart }: ControlsProps) {
             <label
               style={{
                 display: "block",
-                marginBottom: "4px",
-                fontSize: "11px",
-                color: "#888",
+                marginBottom: "var(--space-xs)",
+                fontSize: "var(--font-size-sm)",
+                color: "var(--color-text-secondary)",
                 textTransform: "uppercase",
               }}
             >
@@ -229,12 +229,12 @@ export function Controls({ onStart }: ControlsProps) {
               max={5}
               style={{
                 width: "100%",
-                padding: "6px 8px",
-                fontSize: "12px",
-                border: "1px solid #333",
-                backgroundColor: "#0a0a0a",
-                color: "#00ff00",
-                fontFamily: "Consolas, Monaco, monospace",
+                padding: "var(--space-sm) var(--space-md)",
+                fontSize: "var(--font-size-sm)",
+                border: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-accent)",
+                fontFamily: "var(--font-mono)",
                 outline: "none",
               }}
             />
@@ -244,9 +244,9 @@ export function Controls({ onStart }: ControlsProps) {
             <label
               style={{
                 display: "block",
-                marginBottom: "4px",
-                fontSize: "11px",
-                color: "#888",
+                marginBottom: "var(--space-xs)",
+                fontSize: "var(--font-size-sm)",
+                color: "var(--color-text-secondary)",
                 textTransform: "uppercase",
               }}
             >
@@ -260,12 +260,12 @@ export function Controls({ onStart }: ControlsProps) {
               max={50}
               style={{
                 width: "100%",
-                padding: "6px 8px",
-                fontSize: "12px",
-                border: "1px solid #333",
-                backgroundColor: "#0a0a0a",
-                color: "#00ff00",
-                fontFamily: "Consolas, Monaco, monospace",
+                padding: "var(--space-sm) var(--space-md)",
+                fontSize: "var(--font-size-sm)",
+                border: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-surface)",
+                color: "var(--color-accent)",
+                fontFamily: "var(--font-mono)",
                 outline: "none",
               }}
             />
@@ -276,13 +276,13 @@ export function Controls({ onStart }: ControlsProps) {
           type="submit"
           disabled={isDisabled}
           style={{
-            padding: "8px 24px",
-            fontSize: "12px",
+            padding: "var(--space-md) var(--space-xxl)",
+            fontSize: "var(--font-size-sm)",
             fontWeight: "bold",
-            backgroundColor: isDisabled ? "#1a1a1a" : "#00ff00",
-            color: isDisabled ? "#555" : "#000",
-            border: "1px solid #333",
-            fontFamily: "Consolas, Monaco, monospace",
+            backgroundColor: isDisabled ? "var(--color-overlay)" : "var(--color-accent)",
+            color: isDisabled ? "var(--color-text-muted)" : "var(--color-background)",
+            border: "1px solid var(--color-border)",
+            fontFamily: "var(--font-mono)",
             cursor: isDisabled ? "not-allowed" : "pointer",
             textTransform: "uppercase",
           }}

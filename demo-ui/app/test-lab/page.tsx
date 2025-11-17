@@ -14,6 +14,15 @@ type ToastState = {
   tone: "info" | "success" | "error";
 };
 
+const labTheme = {
+  accent: "#4cc9ff",
+  accentSurface: "#071f32",
+  accentSurfaceMuted: "#051427",
+  accentGlow: "0 0 12px rgba(76, 201, 255, 0.6)",
+  successSurface: "#0b2c45",
+};
+const accentBorder = `1px solid ${labTheme.accent}`;
+
 const fetchJson = async <T,>(
   input: RequestInfo,
   init?: RequestInit
@@ -191,9 +200,17 @@ export default function TestLabPage() {
           backgroundColor: "#050505",
         }}
       >
-        <h2 style={{ fontSize: "14px", marginBottom: "12px" }}>
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: "bold",
+            marginBottom: "16px",
+            color: labTheme.accent,
+            letterSpacing: "0.08em",
+          }}
+        >
           Knowledge Hosts
-        </h2>
+        </div>
         {sortedHosts.map((host) => (
           <button
             key={host.host}
@@ -206,23 +223,26 @@ export default function TestLabPage() {
               padding: "10px",
               border:
                 selectedHost?.host === host.host
-                  ? "1px solid #00ff99"
+                  ? accentBorder
                   : "1px solid #222",
-              background: selectedHost?.host === host.host ? "#111" : "#0a0a0a",
+              background:
+                selectedHost?.host === host.host
+                  ? labTheme.accentSurface
+                  : "#0a0a0a",
               color: "inherit",
               fontFamily: "Consolas, Monaco, monospace",
               fontSize: "12px",
               cursor: "pointer",
             }}
           >
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            <div style={{ fontWeight: "bold", marginBottom: "6px" }}>
               {host.host}
             </div>
-            <div style={{ fontSize: "11px", color: "#aaa" }}>
+            <div style={{ fontSize: "12px", color: "#aaa" }}>
               {host.semanticRuleCount} semantic rules · {host.transitionCount}{" "}
               edges
             </div>
-            <div style={{ fontSize: "10px", color: "#777" }}>
+            <div style={{ fontSize: "12px", color: "#777" }}>
               Seen {formatDate(host.lastSeenAt)}
             </div>
           </button>
@@ -234,16 +254,23 @@ export default function TestLabPage() {
         )}
       </aside>
 
-      <main style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
-        <header style={{ marginBottom: "20px" }}>
-          <h1 style={{ fontSize: "14px", marginBottom: "8px" }}>
+      <main style={{ flex: 1, padding: "16px", overflowY: "auto" }}>
+        <section style={{ marginBottom: "16px" }}>
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: "bold",
+              color: labTheme.accent,
+              letterSpacing: "0.08em",
+              marginBottom: "4px",
+            }}
+          >
             ATLAS - Test Lab
-          </h1>
-          <p style={{ color: "#aaa", fontSize: "10px" }}>
-            Generate Playwright test ideas and scripts directly from the
-            knowledge store.
-          </p>
-        </header>
+          </div>
+          <div style={{ color: "#aaa", fontSize: "12px" }}>
+            Generate Playwright tests directly from the knowledge store.
+          </div>
+        </section>
 
         {selectedHost && (
           <section
@@ -257,7 +284,7 @@ export default function TestLabPage() {
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <div>
                 <strong>{selectedHost.host}</strong>
-                <div style={{ fontSize: "11px", color: "#888" }}>
+                <div style={{ fontSize: "12px", color: "#888" }}>
                   {selectedHost.semanticRuleCount} semantic ·{" "}
                   {selectedHost.transitionCount} edges
                 </div>
@@ -266,21 +293,22 @@ export default function TestLabPage() {
                 onClick={handleSuggest}
                 disabled={loadingPlan || loadingSnapshot}
                 style={{
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  backgroundColor: "#101010",
-                  border: "1px solid #00ff99",
-                  color: loadingPlan ? "#555" : "#00ff99",
+                  padding: "8px 16px",
+                  fontWeight: "bold",
+                  backgroundColor: labTheme.accentSurface,
+                  border: accentBorder,
+                  color: loadingPlan ? "#555" : labTheme.accent,
+                  boxShadow: loadingPlan ? "none" : labTheme.accentGlow,
                   cursor: loadingPlan ? "not-allowed" : "pointer",
                 }}
               >
-                {loadingPlan ? "Suggesting..." : "Suggest flows"}
+                {loadingPlan ? "Suggesting..." : "Suggest test flows"}
               </button>
             </div>
             <div style={{ marginTop: "12px" }}>
               <label
                 style={{
-                  fontSize: "11px",
+                  fontSize: "12px",
                   color: "#888",
                   display: "block",
                   marginBottom: "4px",
@@ -308,11 +336,11 @@ export default function TestLabPage() {
                     type="button"
                     onClick={() => setShowKnowledge((prev) => !prev)}
                     style={{
-                      padding: "4px 8px",
+                      padding: "8px 16px",
                       border: "1px solid #444",
                       backgroundColor: "#0f0f0f",
                       color: "#ddd",
-                      fontSize: "11px",
+                      fontSize: "12px",
                       cursor: "pointer",
                     }}
                   >
@@ -331,7 +359,7 @@ export default function TestLabPage() {
                       <div style={{ border: "1px solid #333", padding: "8px" }}>
                         <div
                           style={{
-                            fontSize: "11px",
+                            fontSize: "12px",
                             color: "#888",
                             marginBottom: "6px",
                           }}
@@ -340,13 +368,13 @@ export default function TestLabPage() {
                         </div>
                         <div style={{ maxHeight: "180px", overflowY: "auto" }}>
                           {snapshot.semanticRules.length === 0 ? (
-                            <div style={{ fontSize: "11px", color: "#666" }}>
+                            <div style={{ fontSize: "12px", color: "#666" }}>
                               No semantic rules stored yet.
                             </div>
                           ) : (
                             <ul
                               style={{
-                                fontSize: "11px",
+                                fontSize: "12px",
                                 color: "#bbb",
                                 paddingLeft: "16px",
                                 margin: 0,
@@ -365,7 +393,7 @@ export default function TestLabPage() {
                       <div style={{ border: "1px solid #333", padding: "8px" }}>
                         <div
                           style={{
-                            fontSize: "11px",
+                            fontSize: "12px",
                             color: "#888",
                             marginBottom: "6px",
                           }}
@@ -374,13 +402,13 @@ export default function TestLabPage() {
                         </div>
                         <div style={{ maxHeight: "180px", overflowY: "auto" }}>
                           {snapshot.transitions.length === 0 ? (
-                            <div style={{ fontSize: "11px", color: "#666" }}>
+                            <div style={{ fontSize: "12px", color: "#666" }}>
                               No transitions stored yet.
                             </div>
                           ) : (
                             <ul
                               style={{
-                                fontSize: "11px",
+                                fontSize: "12px",
                                 color: "#bbb",
                                 paddingLeft: "16px",
                                 margin: 0,
@@ -399,7 +427,7 @@ export default function TestLabPage() {
                       <div style={{ border: "1px solid #333", padding: "8px" }}>
                         <div
                           style={{
-                            fontSize: "11px",
+                            fontSize: "12px",
                             color: "#888",
                             marginBottom: "6px",
                           }}
@@ -408,13 +436,13 @@ export default function TestLabPage() {
                         </div>
                         <div style={{ maxHeight: "180px", overflowY: "auto" }}>
                           {snapshot.transitions.length === 0 ? (
-                            <div style={{ fontSize: "11px", color: "#666" }}>
+                            <div style={{ fontSize: "12px", color: "#666" }}>
                               No affordances recorded yet.
                             </div>
                           ) : (
                             <ul
                               style={{
-                                fontSize: "11px",
+                                fontSize: "12px",
                                 color: "#bbb",
                                 paddingLeft: "16px",
                                 margin: 0,
@@ -457,11 +485,11 @@ export default function TestLabPage() {
                     type="button"
                     onClick={() => setShowPlanDebug((prev) => !prev)}
                     style={{
-                      padding: "4px 8px",
+                      padding: "8px 16px",
                       border: "1px solid #444",
                       backgroundColor: "#0f0f0f",
                       color: "#ddd",
-                      fontSize: "11px",
+                      fontSize: "12px",
                       cursor: "pointer",
                     }}
                   >
@@ -475,7 +503,7 @@ export default function TestLabPage() {
                         <div
                           style={{
                             color: "#888",
-                            fontSize: "11px",
+                            fontSize: "12px",
                             marginBottom: "4px",
                           }}
                         >
@@ -486,9 +514,9 @@ export default function TestLabPage() {
                             backgroundColor: "#010101",
                             border: "1px solid #222",
                             padding: "8px",
-                            color: "#00ff99",
+                            color: labTheme.accent,
                             whiteSpace: "pre-wrap",
-                            fontSize: "11px",
+                            fontSize: "12px",
                           }}
                         >
                           {planDebug.prompt}
@@ -498,7 +526,7 @@ export default function TestLabPage() {
                         <div
                           style={{
                             color: "#888",
-                            fontSize: "11px",
+                            fontSize: "12px",
                             marginBottom: "4px",
                           }}
                         >
@@ -509,9 +537,9 @@ export default function TestLabPage() {
                             backgroundColor: "#010101",
                             border: "1px solid #222",
                             padding: "8px",
-                            color: "#00bfff",
+                            color: labTheme.accent,
                             whiteSpace: "pre-wrap",
-                            fontSize: "11px",
+                            fontSize: "12px",
                           }}
                         >
                           {planDebug.rawOutput || "(no text)"}
@@ -527,9 +555,15 @@ export default function TestLabPage() {
 
         {suggestions.length > 0 && (
           <section style={{ marginBottom: "20px" }}>
-            <h3 style={{ fontSize: "14px", marginBottom: "10px" }}>
-              Suggested flows
-            </h3>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginBottom: "10px",
+              }}
+            >
+              Suggested Test flows
+            </div>
             <div
               style={{ display: "flex", flexDirection: "column", gap: "12px" }}
             >
@@ -553,13 +587,13 @@ export default function TestLabPage() {
                       <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
                         {suggestion.title}
                       </div>
-                      <div style={{ fontSize: "11px", color: "#888" }}>
+                      <div style={{ fontSize: "12px", color: "#888" }}>
                         {suggestion.goal}
                       </div>
                       {suggestion.preconditions && (
                         <div
                           style={{
-                            fontSize: "11px",
+                            fontSize: "12px",
                             color: "#777",
                             marginTop: "2px",
                           }}
@@ -572,11 +606,10 @@ export default function TestLabPage() {
                       onClick={() => handleGenerate(suggestion.goal)}
                       disabled={loadingGenerate}
                       style={{
-                        padding: "4px 8px",
-                        border: "1px solid #00bfff",
-                        backgroundColor: "#051016",
-                        color: "#00bfff",
-                        fontSize: "11px",
+                        padding: "8px 16px",
+                        border: accentBorder,
+                        backgroundColor: labTheme.accentSurfaceMuted,
+                        color: labTheme.accent,
                         cursor: loadingGenerate ? "not-allowed" : "pointer",
                       }}
                     >
@@ -593,14 +626,14 @@ export default function TestLabPage() {
                       display: "flex",
                       gap: "16px",
                       flexWrap: "wrap",
-                      fontSize: "11px",
+                      fontSize: "12px",
                       color: "#bbb",
                     }}
                   >
                     {suggestion.steps && (
                       <details style={{ flex: 1 }}>
                         <summary
-                          style={{ cursor: "pointer", color: "#00ff99" }}
+                          style={{ cursor: "pointer", color: labTheme.accent }}
                         >
                           Steps
                         </summary>
@@ -616,7 +649,7 @@ export default function TestLabPage() {
                     {suggestion.expectedResults && (
                       <details style={{ flex: 1 }}>
                         <summary
-                          style={{ cursor: "pointer", color: "#00ff99" }}
+                          style={{ cursor: "pointer", color: labTheme.accent }}
                         >
                           Expected
                         </summary>
@@ -632,7 +665,7 @@ export default function TestLabPage() {
                     {suggestion.playwrightHints && (
                       <details style={{ flex: 1 }}>
                         <summary
-                          style={{ cursor: "pointer", color: "#00bfff" }}
+                          style={{ cursor: "pointer", color: labTheme.accent }}
                         >
                           Hints
                         </summary>
@@ -659,9 +692,17 @@ export default function TestLabPage() {
             backgroundColor: "#080808",
           }}
         >
-          <h3 style={{ fontSize: "14px", marginBottom: "10px" }}>
-            Custom request
-          </h3>
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: "bold",
+              marginBottom: "10px",
+              color: labTheme.accent,
+              letterSpacing: "0.05em",
+            }}
+          >
+            Custom Test Flow
+          </div>
           <textarea
             value={goalInput}
             onChange={(e) => setGoalInput(e.target.value)}
@@ -677,16 +718,20 @@ export default function TestLabPage() {
               fontFamily: "Consolas, Monaco, monospace",
             }}
           />
+        </section>
+
+        <section>
           <div style={{ marginTop: "10px" }}>
             <button
               onClick={() => handleGenerate()}
               disabled={loadingGenerate || loadingSnapshot || !selectedHost}
               style={{
                 padding: "8px 16px",
-                backgroundColor: "#00ff99",
-                border: "none",
+                backgroundColor: labTheme.accent,
+                border: accentBorder,
                 color: "#000",
                 fontWeight: "bold",
+                boxShadow: loadingGenerate ? "none" : labTheme.accentGlow,
                 cursor: loadingGenerate ? "not-allowed" : "pointer",
               }}
             >
@@ -703,7 +748,17 @@ export default function TestLabPage() {
             backgroundColor: "#050505",
           }}
         >
-          <h3 style={{ fontSize: "14px", marginBottom: "10px" }}>Output</h3>
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: "bold",
+              marginBottom: "4px",
+              color: labTheme.accent,
+              letterSpacing: "0.05em",
+            }}
+          >
+            Generated Tests
+          </div>
           {result ? (
             <>
               <div
@@ -764,7 +819,7 @@ export default function TestLabPage() {
                   border: "1px solid #222",
                   padding: "12px",
                   overflowX: "auto",
-                  color: "#00ff99",
+                  color: labTheme.accent,
                   fontSize: "12px",
                 }}
               >
@@ -783,7 +838,7 @@ export default function TestLabPage() {
                   </div>
                   <ul
                     style={{
-                      fontSize: "11px",
+                      fontSize: "12px",
                       color: "#bbb",
                       paddingLeft: "16px",
                     }}
@@ -817,11 +872,11 @@ export default function TestLabPage() {
                     type="button"
                     onClick={() => setShowGeneratorDebug((prev) => !prev)}
                     style={{
-                      padding: "4px 8px",
+                      padding: "8px 16px",
                       border: "1px solid #444",
                       backgroundColor: "#0f0f0f",
                       color: "#ddd",
-                      fontSize: "11px",
+                      fontSize: "12px",
                       cursor: "pointer",
                     }}
                   >
@@ -836,7 +891,7 @@ export default function TestLabPage() {
                         <div
                           style={{
                             color: "#888",
-                            fontSize: "11px",
+                            fontSize: "12px",
                             marginBottom: "4px",
                           }}
                         >
@@ -847,9 +902,9 @@ export default function TestLabPage() {
                             backgroundColor: "#010101",
                             border: "1px solid #222",
                             padding: "8px",
-                            color: "#00ff99",
+                            color: labTheme.accent,
                             whiteSpace: "pre-wrap",
-                            fontSize: "11px",
+                            fontSize: "12px",
                           }}
                         >
                           {generatorDebug.prompt}
@@ -859,7 +914,7 @@ export default function TestLabPage() {
                         <div
                           style={{
                             color: "#888",
-                            fontSize: "11px",
+                            fontSize: "12px",
                             marginBottom: "4px",
                           }}
                         >
@@ -870,9 +925,9 @@ export default function TestLabPage() {
                             backgroundColor: "#010101",
                             border: "1px solid #222",
                             padding: "8px",
-                            color: "#00bfff",
+                            color: labTheme.accent,
                             whiteSpace: "pre-wrap",
-                            fontSize: "11px",
+                            fontSize: "12px",
                           }}
                         >
                           {generatorDebug.rawOutput || "(no text)"}
@@ -885,7 +940,8 @@ export default function TestLabPage() {
             </>
           ) : (
             <div style={{ fontSize: "12px", color: "#777" }}>
-              Generate a test to see the output.
+              Click "Generate Playwright Tests" to create tests for a desired
+              test flow.
             </div>
           )}
         </section>
@@ -903,7 +959,7 @@ export default function TestLabPage() {
               toast.tone === "error"
                 ? "#531416"
                 : toast.tone === "success"
-                  ? "#0f3b26"
+                  ? labTheme.successSurface
                   : "#1a1a1a",
             color: "#f5f5f5",
             fontSize: "12px",

@@ -16,10 +16,7 @@ import {
   KnowledgeStoreView,
   type KnowledgeFilters,
 } from "./components/KnowledgeStoreView";
-import {
-  applyEventToRunState,
-  createInitialRunState,
-} from "./utils/runState";
+import { applyEventToRunState, createInitialRunState } from "./utils/runState";
 
 const atlasEventTypes: Array<AtlasEvent["type"]> = [
   "init",
@@ -41,11 +38,15 @@ const atlasEventTypes: Array<AtlasEvent["type"]> = [
 ];
 
 export default function Home() {
-  const [runSummaries, setRunSummaries] = useState<Record<string, RunSummary>>({});
+  const [runSummaries, setRunSummaries] = useState<Record<string, RunSummary>>(
+    {}
+  );
   const [runStates, setRunStates] = useState<Record<string, RunState>>({});
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [showControls, setShowControls] = useState<boolean>(true);
-  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>([]);
+  const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>(
+    []
+  );
   const [knowledgeFilters, setKnowledgeFilters] = useState<KnowledgeFilters>({
     runId: null,
     host: "",
@@ -187,8 +188,12 @@ export default function Home() {
             [runId]: {
               ...summary,
               status: isDoneEvent ? "completed" : "error",
-              endedReason: isDoneEvent ? atlasEvent.endedReason : summary.endedReason,
-              errorMessage: isErrorEvent ? atlasEvent.message : summary.errorMessage,
+              endedReason: isDoneEvent
+                ? atlasEvent.endedReason
+                : summary.endedReason,
+              errorMessage: isErrorEvent
+                ? atlasEvent.message
+                : summary.errorMessage,
               updatedAt: new Date().toISOString(),
             },
           };
@@ -219,7 +224,11 @@ export default function Home() {
 
   useEffect(() => {
     Object.values(runSummaries).forEach((run) => {
-      if (run.status === "running" || run.status === "paused" || run.status === "stopping") {
+      if (
+        run.status === "running" ||
+        run.status === "paused" ||
+        run.status === "stopping"
+      ) {
         connectRunStream(run.id);
       }
     });
@@ -227,7 +236,9 @@ export default function Home() {
 
   const startAtlasStream = useCallback(
     (params: URLSearchParams) => {
-      const eventSource = new EventSource(`/api/atlas/stream?${params.toString()}`);
+      const eventSource = new EventSource(
+        `/api/atlas/stream?${params.toString()}`
+      );
       let currentRunId: string | null = null;
 
       eventSource.addEventListener("run_created", (evt) => {
@@ -316,7 +327,9 @@ export default function Home() {
   const handleStopRun = useCallback(async (runId: string) => {
     const refreshRunSummary = async () => {
       try {
-        const latestRes = await fetch(`/api/runs/${runId}`, { cache: "no-store" });
+        const latestRes = await fetch(`/api/runs/${runId}`, {
+          cache: "no-store",
+        });
         if (!latestRes.ok) return;
         const run = (await latestRes.json()) as StoredRun;
         const { events: _events, ...summaryFields } = run;
@@ -383,10 +396,11 @@ export default function Home() {
         console.error(`Failed to stop run ${runId}: ${res.status}`);
         return;
       }
-      const payload: { status?: string; endedReason?: string; errorMessage?: string } | null =
-        await res
-          .json()
-          .catch(() => null);
+      const payload: {
+        status?: string;
+        endedReason?: string;
+        errorMessage?: string;
+      } | null = await res.json().catch(() => null);
       if (payload?.status) {
         applyStatusUpdate(payload.status as RunSummary["status"], {
           endedReason: payload.endedReason,
@@ -416,11 +430,12 @@ export default function Home() {
   };
 
   const selectedRunState = activeRunId ? runStates[activeRunId] : undefined;
-  const selectedRunSummary = activeRunId ? runSummaries[activeRunId] : undefined;
-  const lastStepRecord =
-    selectedRunState?.steps.length
-      ? selectedRunState.steps[selectedRunState.steps.length - 1]
-      : undefined;
+  const selectedRunSummary = activeRunId
+    ? runSummaries[activeRunId]
+    : undefined;
+  const lastStepRecord = selectedRunState?.steps.length
+    ? selectedRunState.steps[selectedRunState.steps.length - 1]
+    : undefined;
   const retryStep =
     (lastStepRecord?.logicalStep ?? lastStepRecord?.step ?? 0) + 1;
   const canRetry = Boolean(activeRunId && selectedRunState?.status === "error");
@@ -433,35 +448,44 @@ export default function Home() {
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        backgroundColor: "#000",
-        color: "#00ff00",
-        fontFamily: "Consolas, Monaco, monospace",
+        backgroundColor: "var(--color-background)",
+        color: "var(--color-accent)",
+        fontFamily: "var(--font-mono)",
         overflow: "hidden",
       }}
     >
       <div
         style={{
-          borderBottom: "1px solid #333",
-          backgroundColor: "#0a0a0a",
+          borderBottom: "1px solid var(--color-border)",
+          backgroundColor: "var(--color-surface)",
         }}
       >
         <div
           onClick={() => setShowControls(!showControls)}
           style={{
-            padding: "12px 20px",
+            padding: "var(--space-lg) var(--space-xxl)",
             cursor: "pointer",
             userSelect: "none",
-            fontSize: "14px",
+            fontSize: "var(--font-size-md)",
             fontWeight: "bold",
           }}
         >
-          <span style={{ marginRight: "8px", color: "#888" }}>
+          <span
+            style={{
+              marginRight: "var(--space-md)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
             {showControls ? "▼" : "▶"}
           </span>
-          ATLAS Control Panel
+          ATLAS - Explorer
         </div>
         {showControls && (
-          <div style={{ padding: "0 20px 20px 20px" }}>
+          <div
+            style={{
+              padding: "0 var(--space-xxl) var(--space-xxl) var(--space-xxl)",
+            }}
+          >
             <Controls onStart={handleStart} />
           </div>
         )}
@@ -472,23 +496,30 @@ export default function Home() {
           display: "grid",
           gridTemplateColumns: "22% 38% 40%",
           gap: "1px",
-          backgroundColor: "#333",
+          backgroundColor: "var(--color-border)",
           flex: 1,
           overflow: "hidden",
         }}
       >
         <div
           style={{
-            backgroundColor: "#000",
-            padding: "15px",
+            backgroundColor: "var(--color-background)",
+            padding: "var(--space-xl)",
             overflowY: "auto",
             display: "flex",
             flexDirection: "column",
-            gap: "14px",
+            gap: "var(--space-xl)",
           }}
         >
           <div>
-            <div style={{ fontSize: "13px", marginBottom: "8px" }}>Runs</div>
+            <div
+              style={{
+                fontSize: "var(--font-size-md)",
+                marginBottom: "var(--space-md)",
+              }}
+            >
+              Runs
+            </div>
             <RunList
               runs={runsForList}
               activeRunId={activeRunId}
@@ -501,11 +532,11 @@ export default function Home() {
 
         <div
           style={{
-            backgroundColor: "#000",
-            padding: "15px",
+            backgroundColor: "var(--color-background)",
+            padding: "var(--space-xl)",
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            gap: "var(--space-lg)",
             overflow: "hidden",
           }}
         >
@@ -538,7 +569,7 @@ export default function Home() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "#555",
+                color: "var(--color-text-muted)",
                 fontStyle: "italic",
               }}
             >
@@ -549,24 +580,23 @@ export default function Home() {
 
         <div
           style={{
-            backgroundColor: "#000",
-            padding: "15px",
+            backgroundColor: "var(--color-background)",
+            padding: "var(--space-xl)",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            gap: "var(--space-lg)",
           }}
         >
           <div
             style={{
-              fontSize: "13px",
+              fontSize: "var(--font-size-md)",
               fontWeight: "bold",
-              color: "#00ff00",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
+              color: "var(--color-accent)",
+              letterSpacing: "var(--letter-spacing-caps)",
             }}
           >
-            knowledge store
+            Knowledge Store
           </div>
           <div style={{ flex: 1, overflow: "hidden" }}>
             <KnowledgeStoreView

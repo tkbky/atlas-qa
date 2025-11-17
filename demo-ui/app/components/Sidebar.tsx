@@ -11,7 +11,12 @@ type SidebarProps = {
   retryDisabled?: boolean;
 };
 
-export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: SidebarProps) {
+export function Sidebar({
+  runState,
+  onRetry,
+  retryStep,
+  retryDisabled,
+}: SidebarProps) {
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
     new Set(
       runState.mode === "flow-discovery"
@@ -53,7 +58,7 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "10px",
+        gap: "var(--space-lg)",
         height: "100%",
         overflow: "auto",
       }}
@@ -66,9 +71,9 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
       >
         <div
           style={{
-            fontFamily: "Consolas, Monaco, monospace",
-            fontSize: "12px",
-            color: "#00ff00",
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--font-size-sm)",
+            color: "var(--color-accent)",
             wordBreak: "break-all",
           }}
         >
@@ -78,16 +83,16 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
 
       {/* Run-level rationales */}
       <Panel
-        title="Agent Rationales"
+        title="Initial Plan + Rationales"
         isExpanded={expandedPanels.has("rationales")}
         onToggle={() => togglePanel("rationales")}
       >
         {latestRunRationales.length === 0 ? (
           <div
             style={{
-              fontFamily: "Consolas, Monaco, monospace",
-              fontSize: "11px",
-              color: "#555",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--font-size-sm)",
+              color: "var(--color-text-muted)",
               fontStyle: "italic",
             }}
           >
@@ -98,17 +103,17 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "10px",
+              gap: "var(--space-lg)",
             }}
           >
             {latestRunRationales.map((rationale, idx) => (
               <div
                 key={`${rationale.agent}-${idx}-${rationale.title ?? "run"}`}
                 style={{
-                  padding: "8px",
-                  border: "1px solid #222",
-                  backgroundColor: "#000",
-                  fontSize: "11px",
+                  padding: "var(--space-md)",
+                  border: "1px solid var(--color-divider)",
+                  backgroundColor: "var(--color-background)",
+                  fontSize: "var(--font-size-sm)",
                 }}
               >
                 <div
@@ -116,28 +121,33 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    gap: "6px",
-                    marginBottom: "6px",
+                    gap: "var(--space-sm)",
+                    marginBottom: "var(--space-sm)",
                   }}
                 >
                   <span
                     style={{
-                      color: "#ffb000",
+                      color: "var(--color-warning)",
                       textTransform: "uppercase",
-                      letterSpacing: "0.08em",
+                      letterSpacing: "var(--letter-spacing-caps)",
                     }}
                   >
                     {rationale.agent}
                   </span>
                   {rationale.title && (
-                    <span style={{ color: "#888", fontStyle: "italic" }}>
+                    <span
+                      style={{
+                        color: "var(--color-text-secondary)",
+                        fontStyle: "italic",
+                      }}
+                    >
                       {rationale.title}
                     </span>
                   )}
                 </div>
                 <div
                   style={{
-                    color: "#00ff00",
+                    color: "var(--color-accent)",
                     lineHeight: 1.4,
                     whiteSpace: "pre-wrap",
                   }}
@@ -147,26 +157,29 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                 {(rationale.prompt || rationale.output) && (
                   <div
                     style={{
-                      marginTop: "6px",
+                      marginTop: "var(--space-sm)",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "4px",
+                      gap: "var(--space-xs)",
                     }}
                   >
                     {rationale.prompt && (
                       <details>
                         <summary
-                          style={{ cursor: "pointer", color: "#888" }}
+                          style={{
+                            cursor: "pointer",
+                            color: "var(--color-text-secondary)",
+                          }}
                         >
                           view prompt
                         </summary>
                         <pre
                           style={{
-                            marginTop: "4px",
-                            backgroundColor: "#0a0a0a",
-                            padding: "8px",
-                            border: "1px solid #222",
-                            color: "#00ff00",
+                            marginTop: "var(--space-xs)",
+                            backgroundColor: "var(--color-surface)",
+                            padding: "var(--space-md)",
+                            border: "1px solid var(--color-divider)",
+                            color: "var(--color-accent)",
                             whiteSpace: "pre-wrap",
                           }}
                         >
@@ -177,17 +190,20 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                     {rationale.output && (
                       <details>
                         <summary
-                          style={{ cursor: "pointer", color: "#888" }}
+                          style={{
+                            cursor: "pointer",
+                            color: "var(--color-text-secondary)",
+                          }}
                         >
                           view output
                         </summary>
                         <pre
                           style={{
-                            marginTop: "4px",
-                            backgroundColor: "#0a0a0a",
-                            padding: "8px",
-                            border: "1px solid #222",
-                            color: "#00ff00",
+                            marginTop: "var(--space-xs)",
+                            backgroundColor: "var(--color-surface)",
+                            padding: "var(--space-md)",
+                            border: "1px solid var(--color-divider)",
+                            color: "var(--color-accent)",
                             whiteSpace: "pre-wrap",
                           }}
                         >
@@ -211,26 +227,28 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
       >
         <div
           style={{
-            fontFamily: "Consolas, Monaco, monospace",
-            fontSize: "12px",
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--font-size-sm)",
           }}
         >
-          <div style={{ marginBottom: "8px" }}>
-            <span style={{ color: "#888" }}>status:</span>{" "}
+          <div style={{ marginBottom: "var(--space-md)" }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>
+              status:
+            </span>{" "}
             <span
               style={{
                 color:
                   runState.status === "running"
-                    ? "#ffb000"
+                    ? "var(--color-warning)"
                     : runState.status === "stopping"
-                      ? "#ff8800"
+                      ? "var(--color-warning)"
                       : runState.status === "completed"
-                        ? "#00ff00"
+                        ? "var(--color-accent)"
                         : runState.status === "error"
-                          ? "#ff4444"
+                          ? "var(--color-danger)"
                           : runState.status === "paused"
-                            ? "#8888ff"
-                            : "#888",
+                            ? "var(--color-info)"
+                            : "var(--color-text-secondary)",
                 fontWeight: "bold",
               }}
             >
@@ -238,44 +256,56 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
             </span>
             {runState.status === "completed" && runState.endedReason && (
               <span
-                style={{ color: "#888", fontSize: "10px", marginLeft: "8px" }}
+                style={{
+                  color: "var(--color-text-secondary)",
+                  fontSize: "var(--font-size-xs)",
+                  marginLeft: "var(--space-md)",
+                }}
               >
                 ({runState.endedReason.replace(/_/g, " ")})
               </span>
             )}
           </div>
-          <div style={{ marginBottom: "8px" }}>
-            <span style={{ color: "#888" }}>step:</span>{" "}
-            <span style={{ color: "#00ff00" }}>
+          <div style={{ marginBottom: "var(--space-md)" }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>step:</span>{" "}
+            <span style={{ color: "var(--color-accent)" }}>
               {currentDisplayStep > 0 ? currentDisplayStep : 0}/{maxSteps}
             </span>
           </div>
-          <div style={{ marginBottom: "8px" }}>
-            <span style={{ color: "#888" }}>total actions:</span>{" "}
-            <span style={{ color: "#00ff00" }}>{totalSteps}</span>
+          <div style={{ marginBottom: "var(--space-md)" }}>
+            <span style={{ color: "var(--color-text-secondary)" }}>
+              total actions:
+            </span>{" "}
+            <span style={{ color: "var(--color-accent)" }}>{totalSteps}</span>
           </div>
           {runState.status === "error" && (
             <div
               style={{
-                marginTop: "12px",
-                padding: "10px",
-                border: "1px solid #442222",
-                backgroundColor: "#1a0000",
-                borderRadius: "4px",
+                marginTop: "var(--space-lg)",
+                padding: "var(--space-lg)",
+                border: "1px solid var(--color-overlay)",
+                backgroundColor: "var(--color-overlay)",
+                borderRadius: "var(--radius-md)",
               }}
             >
               <div
                 style={{
-                  color: "#ff7777",
+                  color: "var(--color-danger)",
                   fontWeight: "bold",
-                  fontSize: "11px",
+                  fontSize: "var(--font-size-sm)",
                   textTransform: "uppercase",
-                  marginBottom: "6px",
+                  marginBottom: "var(--space-sm)",
                 }}
               >
                 Last error
               </div>
-              <div style={{ color: "#ffb0b0", fontSize: "11px", lineHeight: 1.4 }}>
+              <div
+                style={{
+                  color: "var(--color-danger)",
+                  fontSize: "var(--font-size-sm)",
+                  lineHeight: 1.4,
+                }}
+              >
                 {runState.errorMessage || "Unknown failure"}
               </div>
               {onRetry && (
@@ -283,16 +313,20 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                   onClick={onRetry}
                   disabled={retryDisabled}
                   style={{
-                    marginTop: "10px",
+                    marginTop: "var(--space-lg)",
                     width: "100%",
-                    padding: "6px 8px",
-                    backgroundColor: retryDisabled ? "#222" : "#002200",
-                    border: "1px solid #004400",
-                    color: retryDisabled ? "#555" : "#00ff00",
+                    padding: "var(--space-sm) var(--space-md)",
+                    backgroundColor: retryDisabled
+                      ? "var(--color-divider)"
+                      : "var(--color-accent-muted)",
+                    border: "1px solid var(--color-accent)",
+                    color: retryDisabled
+                      ? "var(--color-text-muted)"
+                      : "var(--color-accent)",
                     cursor: retryDisabled ? "not-allowed" : "pointer",
-                    fontSize: "11px",
+                    fontSize: "var(--font-size-sm)",
                     textTransform: "uppercase",
-                    letterSpacing: "0.08em",
+                    letterSpacing: "var(--letter-spacing-caps)",
                   }}
                 >
                   {retryDisabled
@@ -304,13 +338,20 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
           )}
 
           {runState.goal && (
-            <div style={{ marginTop: "12px" }}>
-              <div style={{ color: "#888", marginBottom: "4px" }}>goal:</div>
+            <div style={{ marginTop: "var(--space-lg)" }}>
               <div
                 style={{
-                  color: "#ffb000",
+                  color: "var(--color-text-secondary)",
+                  marginBottom: "var(--space-xs)",
+                }}
+              >
+                goal:
+              </div>
+              <div
+                style={{
+                  color: "var(--color-warning)",
                   fontStyle: "italic",
-                  fontSize: "11px",
+                  fontSize: "var(--font-size-sm)",
                 }}
               >
                 {runState.goal}
@@ -328,13 +369,13 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
       >
         <div
           style={{
-            fontFamily: "Consolas, Monaco, monospace",
-            fontSize: "11px",
-            marginBottom: "8px",
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--font-size-sm)",
+            marginBottom: "var(--space-md)",
           }}
         >
-          <span style={{ color: "#888" }}>nodes:</span>{" "}
-          <span style={{ color: "#00ff00" }}>
+          <span style={{ color: "var(--color-text-secondary)" }}>nodes:</span>{" "}
+          <span style={{ color: "var(--color-accent)" }}>
             {
               new Set(
                 runState.cognitiveMap.flatMap((e) => [e.fromKey, e.to.url])
@@ -342,8 +383,10 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
             }
           </span>
           {" | "}
-          <span style={{ color: "#888" }}>edges:</span>{" "}
-          <span style={{ color: "#00ff00" }}>
+          <span style={{ color: "var(--color-text-secondary)" }}>
+            edges:
+          </span>{" "}
+          <span style={{ color: "var(--color-accent)" }}>
             {runState.cognitiveMap.length}
           </span>
         </div>
@@ -362,21 +405,32 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
       >
         <div
           style={{
-            fontFamily: "Consolas, Monaco, monospace",
-            fontSize: "11px",
-            color: "#888",
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--font-size-sm)",
+            color: "var(--color-text-secondary)",
           }}
         >
           {runState.semanticRules ? (
-            <div style={{ whiteSpace: "pre-wrap", color: "#00ff00" }}>
+            <div
+              style={{ whiteSpace: "pre-wrap", color: "var(--color-accent)" }}
+            >
               {runState.semanticRules}
             </div>
           ) : (
-            <div style={{ color: "#555", fontStyle: "italic" }}>
+            <div
+              style={{ color: "var(--color-text-muted)", fontStyle: "italic" }}
+            >
               No semantic rules learned yet for this domain.
-              <div style={{ marginTop: "8px", fontSize: "10px" }}>
+              <div
+                style={{
+                  marginTop: "var(--space-md)",
+                  fontSize: "var(--font-size-xs)",
+                }}
+              >
                 Semantic memory stores:
-                <ul style={{ margin: "4px 0", paddingLeft: "20px" }}>
+                <ul
+                  style={{ margin: "4px 0", paddingLeft: "var(--space-xxl)" }}
+                >
                   <li>Site-specific constraints</li>
                   <li>Date/time format rules</li>
                   <li>Non-recoverable actions</li>
@@ -397,24 +451,29 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
         >
           <div
             style={{
-              fontFamily: "Consolas, Monaco, monospace",
-              fontSize: "11px",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--font-size-sm)",
             }}
           >
             {runState.flowAnalysis?.currentState ? (
               <>
-                <div style={{ marginBottom: "12px" }}>
-                  <div style={{ color: "#888", marginBottom: "4px" }}>
+                <div style={{ marginBottom: "var(--space-lg)" }}>
+                  <div
+                    style={{
+                      color: "var(--color-text-secondary)",
+                      marginBottom: "var(--space-xs)",
+                    }}
+                  >
                     Current State:
                   </div>
                   <div
                     style={{
                       color:
                         runState.flowAnalysis.currentState === "start"
-                          ? "#00ff00"
+                          ? "var(--color-accent)"
                           : runState.flowAnalysis.currentState === "end"
-                            ? "#ff4444"
-                            : "#ffb000",
+                            ? "var(--color-danger)"
+                            : "var(--color-warning)",
                       fontWeight: "bold",
                       textTransform: "uppercase",
                     }}
@@ -425,32 +484,37 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
 
                 {runState.flowAnalysis.judgeDecisions.length > 0 && (
                   <div>
-                    <div style={{ color: "#888", marginBottom: "8px" }}>
+                    <div
+                      style={{
+                        color: "var(--color-text-secondary)",
+                        marginBottom: "var(--space-md)",
+                      }}
+                    >
                       Judge Decisions:
                     </div>
-                    <div style={{ fontSize: "10px" }}>
+                    <div style={{ fontSize: "var(--font-size-xs)" }}>
                       {runState.flowAnalysis.judgeDecisions.map((jd, i) => (
                         <div
                           key={i}
                           style={{
-                            marginBottom: "8px",
-                            paddingBottom: "8px",
+                            marginBottom: "var(--space-md)",
+                            paddingBottom: "var(--space-md)",
                             borderBottom:
                               i <
                               runState.flowAnalysis!.judgeDecisions.length - 1
-                                ? "1px solid #222"
+                                ? "1px solid var(--color-divider)"
                                 : "none",
                           }}
                         >
-                          <div style={{ color: "#888" }}>
+                          <div style={{ color: "var(--color-text-secondary)" }}>
                             Step {jd.step}: {jd.analysis.replace(/_/g, " ")}
                           </div>
                           <div
                             style={{
                               color: jd.decision.isCorrect
-                                ? "#00ff00"
-                                : "#ff4444",
-                              marginTop: "4px",
+                                ? "var(--color-accent)"
+                                : "var(--color-danger)",
+                              marginTop: "var(--space-xs)",
                             }}
                           >
                             {jd.decision.isCorrect
@@ -459,8 +523,8 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                             {jd.decision.explanation && (
                               <div
                                 style={{
-                                  color: "#888",
-                                  marginTop: "4px",
+                                  color: "var(--color-text-secondary)",
+                                  marginTop: "var(--space-xs)",
                                   fontStyle: "italic",
                                 }}
                               >
@@ -475,7 +539,12 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
                 )}
               </>
             ) : (
-              <div style={{ color: "#555", fontStyle: "italic" }}>
+              <div
+                style={{
+                  color: "var(--color-text-muted)",
+                  fontStyle: "italic",
+                }}
+              >
                 No flow analysis yet. Analysis will appear as the agent
                 explores.
               </div>
@@ -493,22 +562,22 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
         >
           <div
             style={{
-              fontFamily: "Consolas, Monaco, monospace",
-              fontSize: "10px",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--font-size-xs)",
             }}
           >
-            <div style={{ marginBottom: "8px" }}>
+            <div style={{ marginBottom: "var(--space-md)" }}>
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(runState.generatedTest || "");
                 }}
                 style={{
-                  padding: "4px 8px",
-                  fontSize: "10px",
-                  backgroundColor: "#1a1a1a",
-                  color: "#00ff00",
-                  border: "1px solid #333",
-                  fontFamily: "Consolas, Monaco, monospace",
+                  padding: "var(--space-xs) var(--space-md)",
+                  fontSize: "var(--font-size-xs)",
+                  backgroundColor: "var(--color-overlay)",
+                  color: "var(--color-accent)",
+                  border: "1px solid var(--color-border)",
+                  fontFamily: "var(--font-mono)",
                   cursor: "pointer",
                 }}
               >
@@ -517,12 +586,12 @@ export function Sidebar({ runState, onRetry, retryStep, retryDisabled }: Sidebar
             </div>
             <pre
               style={{
-                backgroundColor: "#000",
-                padding: "12px",
-                border: "1px solid #333",
+                backgroundColor: "var(--color-background)",
+                padding: "var(--space-lg)",
+                border: "1px solid var(--color-border)",
                 overflowX: "auto",
                 margin: 0,
-                color: "#00ff00",
+                color: "var(--color-accent)",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
@@ -547,30 +616,37 @@ function Panel({ title, isExpanded, onToggle, children }: PanelProps) {
   return (
     <div
       style={{
-        border: "1px solid #333",
-        backgroundColor: "#0a0a0a",
+        border: "1px solid var(--color-border)",
+        backgroundColor: "var(--color-surface)",
       }}
     >
       <div
         onClick={onToggle}
         style={{
-          padding: "8px 12px",
+          padding: "var(--space-md) var(--space-lg)",
           cursor: "pointer",
-          backgroundColor: "#1a1a1a",
-          borderBottom: isExpanded ? "1px solid #333" : "none",
-          fontFamily: "Consolas, Monaco, monospace",
-          fontSize: "13px",
-          color: "#00ff00",
+          backgroundColor: "var(--color-overlay)",
+          borderBottom: isExpanded ? "1px solid var(--color-border)" : "none",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--font-size-md)",
+          color: "var(--color-accent)",
           fontWeight: "bold",
           userSelect: "none",
         }}
       >
-        <span style={{ marginRight: "8px", color: "#888" }}>
+        <span
+          style={{
+            marginRight: "var(--space-md)",
+            color: "var(--color-text-secondary)",
+          }}
+        >
           {isExpanded ? "▼" : "▶"}
         </span>
         {title}
       </div>
-      {isExpanded && <div style={{ padding: "12px" }}>{children}</div>}
+      {isExpanded && (
+        <div style={{ padding: "var(--space-lg)" }}>{children}</div>
+      )}
     </div>
   );
 }
